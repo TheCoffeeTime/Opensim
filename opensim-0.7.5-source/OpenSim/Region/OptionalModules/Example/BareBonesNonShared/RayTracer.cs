@@ -154,11 +154,11 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             float lat, lon;
             List<OneRayReflections> rays = new List<OneRayReflections>();
 
-            for (lon = 0; lon < 360; lon += 5)
+            for (lon = 0; lon < 360; lon += 20)
             {
                 m_log.DebugFormat ("[BARE BONES NON SHARED] Raytracing longtitude {0}!", lon);
 
-                for (lat = 0; lat < 360; lat += 5)
+                for (lat = 0; lat < 360; lat += 20)
                 {
                     Vector3 dir = new Vector3();
                     double DEG_TO_RAD = Math.PI / 180.0;

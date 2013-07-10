@@ -102,13 +102,9 @@ namespace ModSendCommandExample
             m_commsMod.OnScriptCommand += ProcessScriptCommand;
         }
 
-
-        public void Initialise(Scene scene, IConfigSource source)
+        public void Initialise(IConfigSource source) 
         {
-            m_scene = scene;
             Source = source;
-            raytrace.Initialise(scene, source, runningFreq);
-
         }
 
         public void PostInitialise()
@@ -180,11 +176,5 @@ namespace ModSendCommandExample
 
             }//switch
         }//ProcessScriptCommand
-
-
-        public void Initialise(IConfigSource source)
-        {
-            throw new NotImplementedException();
-        }
     }//class
 }//name space
