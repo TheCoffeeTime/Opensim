@@ -44,7 +44,6 @@ using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenMetaverse; //using OpenSim.Region.Framework.Scenes;
 using log4net;
-using System.Threading;
 using System.Collections.Generic;
 using OpenSim.Region.OptionalModules.Example.BareBonesNonShared;
 
