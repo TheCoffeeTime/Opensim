@@ -42,7 +42,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         int MAX_REFLECTIONS = 5;        //Maximum number of reflection that a ray can reflect. 
         float MAX_DISTANCE = 30;        //Maximum number of distance that a ray can travel. 
         List<OneRayReflections>[] hits; //Array of List reflections from 0 to MAX_REFLECTIONS. 
-        int ANGLE_BETWEEN_RAY = 2;      //This parameter will determine how many ray is emitted from the transmitter. Number of rays = (360/ANGLE_BETWEEN_RAY)^2
+        int ANGLE_BETWEEN_RAY = 1;      //This parameter will determine how many ray is emitted from the transmitter. Number of rays = (360/ANGLE_BETWEEN_RAY)^2
         static string runningFreqRT="2.4_ghz";  
         static double runningPowerRT=44;
         double DEG_TO_RAD = Math.PI / 180.0;    //Multiply this to a degree unit to get radian unit. 
@@ -634,7 +634,10 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                         // look at each part that makes the group
                         t.ForEachPart(delegate(SceneObjectPart part)
                         {
-                            
+                            // it can not hit the same prim after reflection
+                            if (!part.Equals(last))
+                            {
+
                                 EntityIntersection intersect = new EntityIntersection();
                                 intersect.HitTF = false;
 
@@ -665,6 +668,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
                                    
                                 }//if
+                            }//if
                         });
 
                     }//if
