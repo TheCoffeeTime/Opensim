@@ -385,12 +385,12 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     part.Material = (byte)Material.Metal;
                    
 
-                    //doClaculations(angle, fromPoint, toPoint,part);
+                    doClaculations(angle, fromPoint, toPoint,part);
                     //Important to add scripts to prims on the client side//
                     //m_log.Info("Add touch script");
                     //Added by Mona///
                     //Call method to add touchScripts//
-                    //addTouchScript(sog, part);
+                     addTouchScript(sog, part);
                     //m_log.Info("Touch script added.");
                     // tHIS SHOULD BE REMOVED !!!
                    
@@ -517,8 +517,10 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             {
                 double powercurr = Math.Pow(10, (runningPowerRT + 30) / 10);
                 double path_loss = 0;
-                string frequencyValue = frequency.Split('_')[0];
-                string frequencyUnit = frequency.Split('_')[1];
+                string frequencyValue = "2.4";
+                string frequencyUnit = "ghz";
+                //frequency.Split('_')[0];
+                //string frequencyUnit = frequency.Split('_')[1];
                 
                 Conversion.Initialize();
                 string from = Conversion.Get_Unit_Class1(frequencyValue, frequencyUnit);
@@ -704,7 +706,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
                     //A ray has origin and direction
                     Ray ray = new Ray(currentPos.ipoint, currentDirection);
-                    //Find an exact point where this ray will hit a prim. Closest var stores attributes of where this intersection occurs. 
+                    //Find an exact point where this ray will hitf a prim. Closest var stores attributes of where this intersection occurs. 
                     EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
 
                     //If the ray hit something (a prim)
@@ -748,15 +750,16 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             /// </summary>
             public bool checkToken(string token, EntityBase prim)
             {
-                //If the prim is the receiver, then return true.
-                if (prim.Name.CompareTo("Ry") == 0)
-                    return true;
 
                 //Get all tokens from the name
                 string[] tokens = prim.Name.Split('_');
                 //For each of the token if it matches then return true
                 foreach(string t in tokens)
                 {   //If matches, then return true
+                    //If the prim is the receiver, then return true.
+                    if (prim.Name.CompareTo("Ry") == 0)
+                        return true;
+
                     if (t.CompareTo(token) == 0)
                         return true;
                 }//foreach

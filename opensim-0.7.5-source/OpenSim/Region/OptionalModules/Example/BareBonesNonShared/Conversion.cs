@@ -28,8 +28,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         public static void Initialize()
         {
             g = new Graph();
-            g.LoadFromFile("C:/Users/mona/Downloads/qudt-(l1-v1_0_0)/qudt-(l1-v1_0_0)/unit.owl");
-            g.LoadFromFile("C:/Users/mona/Downloads/qudt-(l1-v1_0_0)/qudt-(l1-v1_0_0)/quantity.owl");
+            g.LoadFromFile("C:/Users/Thanakorn/Documents/GitHub/Opensim/opensim-0.7.5-source/bin/unit.owl");
+            g.LoadFromFile("C:/Users/Thanakorn/Documents/GitHub/Opensim/opensim-0.7.5-source/bin/quantity.owl");
             abbreviation = "<http://data.nasa.gov/qudt/owl/qudt#abbreviation>";
             code = "<http://data.nasa.gov/qudt/owl/qudt#code>";
             conversionMultiplier = "<http://data.nasa.gov/qudt/owl/qudt#conversionMultiplier>";
