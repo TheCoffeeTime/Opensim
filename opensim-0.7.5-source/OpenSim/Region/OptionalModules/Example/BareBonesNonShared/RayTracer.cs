@@ -12,6 +12,8 @@ using Nini.Config;
 using OpenSim.Framework;
 using OpenMetaverse.Assets;
 using System.Drawing;
+using OpenSim.Region.OptionalModules.Example.BareBonesNonShared;
+
 /// Author: Mihail Kovachev
 /// Author: Mona Demaidi
 /// Author: Thanakorn Tuanwachat
@@ -30,40 +32,63 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         
     }
 
+    static class PrimType
+    {
+        public const int Box = 1;
+        public const int Sphere = 2;
+        public const int Cylinder = 3;
+    }//PrimType
+
     class RayTracer
     {
-        //This variable is used for outputting message on standard output. 
+        //m_log: used for outputting message on standard output. 
+        //m_prims of objects/entities in the world.
+        //hits: Array of List reflections from 0 to MAX_REFLECTIONS. 
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        Scene m_scene=null;
-        EntityBase[] m_prims;           //A list of objects/entities in the world. 
+        Scene m_scene=null; 
+        EntityBase[] m_prims;
         IScriptModuleComms m_commsMod;
-        SceneObjectGroup transmitter;   //Transmitter in the world
-        SceneObjectGroup receiver;      //Receiver in the world
-        int MAX_REFLECTIONS = 5;        //Maximum number of reflection that a ray can reflect. 
-        float MAX_DISTANCE = 30;        //Maximum number of distance that a ray can travel. 
-        List<OneRayReflections>[] hits; //Array of List reflections from 0 to MAX_REFLECTIONS. 
-        int ANGLE_BETWEEN_RAY = 1;      //This parameter will determine how many ray is emitted from the transmitter. Number of rays = (360/ANGLE_BETWEEN_RAY)^2
-        static string runningFreqRT="2.4_ghz";  
-        static double runningPowerRT=44;
-        double DEG_TO_RAD = Math.PI / 180.0;    //Multiply this to a degree unit to get radian unit. 
+        SceneObjectGroup transmitter; 
+        SceneObjectGroup receiver;
+        List<OneRayReflections>[] hits; 
+
+        //Default class variables. These variables will be reset then the "restart ray stacer" button is pressed
+        int MAX_REFLECTIONS = 5;
+        float MAX_DISTANCE = 30;
+        int ANGLE_BETWEEN_RAY = 1;
+        static string runningFreqRT = "2.4";
+        static string runningFreqRTUnit = "ghz";
+        static double runningPowerRT = 44;
+        static string runningPowerRTUnit = "dBw";
+        static string RTModel;
+        static string ANModel;
+        double DEG_TO_RAD = Math.PI / 180.0;
+        UUID scriptID;
 
         /**
          * Sets the transmitter to the prim with the name Tx and the 
          * receiver to the prim called Rx.
+         * setOfVariables is a string that can be 'split'/broken down into many sub strings which will be used here
+         * to initialse variables
          * 
          */
-        public void Initialise(Scene scene, IConfigSource source, string runningFreq)
+        public void Initialise(Scene scene, IConfigSource source, string setOfvariables, UUID _scriptID)
         {
-            runningFreqRT = runningFreq;
             m_scene = scene;
+            //This variable can be used to send message back to the script calling this function
+            m_commsMod = m_scene.RequestModuleInterface<IScriptModuleComms>();
+            //This script is used as a parameter to send a message back to the right object in the world. 
+            scriptID = _scriptID;
+
+            //Total number of initialise variables
+            int noOfInitVar = initialiseVariables(setOfvariables);
+            m_log.DebugFormat("[Ray Tracer Init]: total number of initialised variables = " + noOfInitVar.ToString());
            
             hits = new List<OneRayReflections>[MAX_REFLECTIONS + 1];
             
             int i;
             for (i = 0; i <= MAX_REFLECTIONS; i++)
             {
-
-                
                 hits[i] = new List<OneRayReflections>();
                 hits[i].Clear();
             }
@@ -71,6 +96,91 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 m_log.DebugFormat("[BARE BONES NON SHARED]: INITIALIZED MODULE");
 
         }
+
+        /// <summary>
+        /// set RayTracer class varaibles according to the given set of variables. 
+        /// This set of variables come from the in-world script from the remote control, when "restart raytracer" button 
+        /// is pressed. 
+        /// </summary>
+        /// <param name="setOfVariables"></param>
+        public int initialiseVariables(string setOfVariables)
+        {
+            //Each element will have a format of e.g. Frequency=10, FrequencyUnit=MHz etc.
+            string[] arrayOfVariables = setOfVariables.Split('_');
+            
+            //Check if all the variable has been initialise by counting. 
+            int countVariable = 0;
+            //Foreach of those element the the variables
+            foreach (string variableNameAndValue in arrayOfVariables)
+            {
+                string[] variableNameAndValueToken = variableNameAndValue.Split('=');
+                //if variable has value attatch to it.
+                if (variableNameAndValueToken.Length == 2)
+                {
+                    string variableName = variableNameAndValueToken[0];
+                    string variableValue = variableNameAndValueToken[1];
+                    switch (variableName)
+                    {
+
+                        case "Frequency":
+                            runningFreqRT = variableValue;
+                            countVariable++;
+                            break;
+
+                        case "FrequencyUnit":
+                            runningFreqRTUnit = variableValue;
+                            countVariable++;
+                            break;
+
+                        case "TransmitterPower":
+                            runningPowerRT = Convert.ToDouble(variableValue);
+                            countVariable++;
+                            break;
+                        case "TransmitterPowerUnit":
+                            runningPowerRTUnit = variableValue;
+                            countVariable++;
+                            break;
+                        case "Model":
+                            RTModel = variableValue;
+                            countVariable++;
+                            break;
+                        case "AngleBetweenRays":
+                            ANGLE_BETWEEN_RAY = StringAndNumberConversion.getOnlyIntegerNumber(variableValue, ' ');
+                            countVariable++; 
+                            break;
+                        case "AntennaType":
+                            ANModel = variableValue;
+                            countVariable++;
+                            break;
+                        case "MaxReflection":
+                            MAX_REFLECTIONS = StringAndNumberConversion.getOnlyIntegerNumber(variableValue, ' ');
+                            countVariable++;
+                            break;
+                        case "MaxDistance":
+                            MAX_DISTANCE = StringAndNumberConversion.getOnlyIntegerNumber(variableValue, ' ');
+                            countVariable++;
+                            break;
+                        default:
+                            //This default is for debugging purpose. If this variable name did not match any of the existing variables name. 
+                            string errorMsg = "Error: " + variableName + "did not match one of the variables in ray tracer";
+                            m_commsMod.DispatchReply(scriptID, 1, "Error: " + errorMsg, "");
+                            m_log.DebugFormat("[RAY TRACER INIT] " + variableName + " did not match one of the variables in ray tracer");
+                            break;
+                    }//switch
+                }//if
+
+                //This else is purely for the purpose of debugging purpose. It only happens when the string doesn't 
+                //contain both variable and its value, ie, not in this formar -> var=10, frequency=20
+                else
+
+                {
+                    string errorMsg = "Error: " + variableNameAndValueToken[0] + "has length != 2";
+                    m_commsMod.DispatchReply(scriptID, 1, "Error: " + errorMsg, "");
+                }//else
+            }//foreach
+
+            return countVariable;
+        }//initialiseVariables
 
         //To start ray tracing from the transimitter to the receiver
         //To initialise m_prims variable. (entities in the world)
@@ -89,7 +199,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             else
             {
                 m_log.DebugFormat("[BARE BONES NON SHARED] {0}!", receiver.RootPart.Scale);
-                rayTraceFromTransmitterBrutefoce();
+                //rayTraceFromTransmitterBrutefoce();
+                getRaysPath();
             }
 
         }
@@ -186,8 +297,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
                     reflections.followRayReflections();
                     //while (worker.IsAlive);
-
-
                 }
             }//for
             //For all the rays those we have computed their reflections, if they hit the receiver, then add them to hits. 
@@ -301,6 +410,112 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             return reflectedRay;
         }
 
+        /// <summary>
+        /// Get 'all' possible path from the transmitter to the receiver
+        /// </summary>
+        public void getRaysPath()
+        {
+            drawPlaneRay(this.transmitter.RootPart.AbsolutePosition, this.receiver.RootPart.AbsolutePosition);
+        }//getRayPath
+        /// <summary>
+        /// Draw a ray (which has a shape of rectangle but with thin y and z value) from 2 given points. 
+        /// The ray is drawn on the mid point between the 2 given points then rotate around y-axis and z-axis
+        /// to make the ray connect between 2 points. For more information, please have a look at online TROVE Developer Documentations
+        /// 
+        /// By Thanakorn Tuanwachat 07/2013
+        /// </summary>
+        /// <param name="startPoint">The point where the ray start</param>
+        /// <param name="endPoint">The point where the ray end</param>
+        public void drawPlaneRay(Vector3 startPoint, Vector3 endPoint)
+        {
+            //Distance and Mid-point between 2 points 
+            double rayLength = (startPoint - endPoint).Length();
+            Vector3 midPoint = (startPoint + endPoint) / 2;
+
+            //Distance along the y-axis and z-axis between 2 points
+            double xDistance = startPoint.X - endPoint.X;
+            double yDistance = startPoint.Y - endPoint.Y;
+            double zDistance = startPoint.Z - endPoint.Z;
+            //Angles for rotating the objects (dervied from x, y, and z distances)
+            //See developer documentations for more details
+            double xAxisRotation = 0;
+            double yAxisRotation = Math.Atan(zDistance / xDistance * (-1.0));
+            double zAxisRotation = Math.Atan(yDistance / xDistance);
+
+            //Start drawing the ray
+            //Set up parameters for drawing an object in the world. Width = 0.2 unit and depth = 0.01 unit.
+            float rayWidth = 0.05f; float rayDepth = 0.05f;
+            Vector3 dimension = new Vector3((float)rayLength, (float)rayWidth, (float)rayDepth);
+            double[] rotation = new double[3];
+            //Vector3 but in double because I dont want it to do double casting later on. Index 0 = x, 1 = y, 2 = z. 
+            rotation[0] = xAxisRotation; rotation[1] = yAxisRotation; rotation[2] = zAxisRotation;
+            addObjectToTheWorld(null, startPoint, dimension, rotation, PrimType.Box);
+
+
+        }//drawPlaneRay
+
+        /// <summary>
+        /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
+        /// *There are 2 compulsory fields which are position and primType. The rest are optionals. 
+        /// </summary>
+        /// <param name="name">Name of this object. Use default value "primative" if null is given</param>
+        /// <param name="position">"Vector(x y z) where x, y, and z represent the coordinates in the world"</param>
+        /// <param name="dimension">"Vector(x, y, z) where x, y, and z represent the size of the object"</param>
+        /// <param name="rotations">double(x, y, z) where x, y, and z represent angle of rotation from its axis in radian</param>
+        /// <param name="primType">There are only 3 types which are Box, </param>
+        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, double[] rotation, int primType)
+        {
+            //Generate UUID
+            UUID rayUUID = UUID.Random();
+            //Place an object into the world. It can either be Box, Sphere, or Cylinder. according to the given PrimType
+            SceneObjectGroup sog;
+            switch (primType)
+            {
+                case PrimType.Box:
+                    sog = new SceneObjectGroup(new UUID(rayUUID), position, OpenSim.Framework.PrimitiveBaseShape.CreateBox());
+                    break;
+                case PrimType.Sphere:
+                    sog = new SceneObjectGroup(new UUID(rayUUID), position, OpenSim.Framework.PrimitiveBaseShape.CreateSphere());
+                    break;
+                case PrimType.Cylinder:
+                    sog = new SceneObjectGroup(new UUID(rayUUID), position, OpenSim.Framework.PrimitiveBaseShape.CreateCylinder());
+                    break;
+                default:
+                    throw new Exception("Invalid PrimType");
+            }//switch
+
+            //Check if it is possible to set thses parameters. If not then use default value
+            if(dimension != null)
+            {
+              sog.RootPart.Scale = dimension;
+            }
+            if(rotation != null)
+            {
+                //Need to convert to given angle (in radian) into its Cos form as it is required as a parameter. 
+                //For more information please use the TROVE Developer Documentations. 
+                m_log.DebugFormat("[DRAWING RAY]: x = " + (rotation[0]*(180.0 / Math.PI)).ToString());
+                m_log.DebugFormat("[DRAWING RAY]: y = " + (rotation[1] * (180.0 / Math.PI)).ToString());
+                m_log.DebugFormat("[DRAWING RAY]: z = " + (rotation[2] * (180.0 / Math.PI)).ToString());
+
+                m_log.DebugFormat("[DRAWING RAY]: x = " + ((float)Math.Cos(rotation[0])).ToString());
+                m_log.DebugFormat("[DRAWING RAY]: y = " + ((float)Math.Cos(rotation[1])).ToString());
+                m_log.DebugFormat("[DRAWING RAY]: z = " + ((float)Math.Cos(rotation[2])).ToString());
+                sog.RootPart.UpdateRotation(Quaternion.CreateFromEulers((float)rotation[0], (float)rotation[1], (float)rotation[2]));
+            }//if
+            if(name != null)
+            {
+                sog.Name = name;
+            }//if
+            else
+            {
+                sog.Name = "Primative";
+            }//else
+            //Add this object to the scene.
+            m_scene.AddNewSceneObject(sog, false);
+            sog.ScheduleGroupForFullUpdate();
+            sog.HasGroupChanged = true;
+        }//addObjectToTheWorld
+
         public class OneRayReflections
         {
             public Vector3 start;
@@ -343,7 +558,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 //Added By mona
                // angle =RadianToDegree( Math.Acos((double)(getAngleOfIncidenceCos(-dir, toPoint.normal))));
                // m_log.Info("[ANGLE]"+angle.ToString());
-               // doClaculations(angle,fromPoint,toPoint);
+               // doCalculations(angle,fromPoint,toPoint);
 
                 /////////////////
                 // 5.0 is the speres used for a unit length
@@ -364,6 +579,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 int uuidpart2 = 1111;
                 Int64 uuidpart3 = 111111111111;
                 ////////////////////////////////
+      
                 UUID ncAssetUuid = UUID.Random();
                 UUID ncItemUuid = UUID.Random();
                 for (i = 0; i < k - 1; i++)
@@ -383,14 +599,14 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     //sog.SetRootPart(part);
                     part.Color = Color.FromArgb(255, 255, 0, 0);
                     part.Material = (byte)Material.Metal;
-                   
 
-                    doClaculations(angle, fromPoint, toPoint,part);
+
+                    //doCalculations(angle, fromPoint, toPoint, part);
                     //Important to add scripts to prims on the client side//
                     //m_log.Info("Add touch script");
                     //Added by Mona///
                     //Call method to add touchScripts//
-                     addTouchScript(sog, part);
+                    //addTouchScript(sog, part);
                     //m_log.Info("Touch script added.");
                     // tHIS SHOULD BE REMOVED !!!
                    
@@ -496,14 +712,14 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             /// ////////////////////////////////////////////CalculatePathLoss////////////////////////////////////////////////////////////
             /// </summary>
             /// The path loss is calculated in dB where d is in meters and f in megahertz
-            double calculatePathloss(double distance, string frequency)
+            double calculatePathloss(double distance)
             {
                 double path_loss = 0;
                 // Any input frequency is converted to Mhz using the the converter ontology!!
                 //the input frequency is in the following format ex 1000_hz
                 //The ontolgy converts the frequency value to mhz
-                string frequencyValue = frequency.Split('_')[0];
-                string frequencyUnit = frequency.Split('_')[1];
+                string frequencyValue = runningFreqRT.Split('_')[0];
+                string frequencyUnit = runningFreqRT.Split('_')[1];
                 Conversion.Initialize();
                 string from = Conversion.Get_Unit_Class1(frequencyValue, frequencyUnit);
                 string to = Conversion.Get_Unit_Class1("1", "mhz");
@@ -513,14 +729,12 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }
             /// <summary>
             /// /////////////////////////////////////////////////////////////////////////////////////////////////////////
-            double CalculatePathlossRays(double distance, string frequency,double refcoeff,double pos)
+            double CalculatePathlossRays(double distance, double refcoeff,double pos)
             {
                 double powercurr = Math.Pow(10, (runningPowerRT + 30) / 10);
                 double path_loss = 0;
-                string frequencyValue = "2.4";
-                string frequencyUnit = "ghz";
-                //frequency.Split('_')[0];
-                //string frequencyUnit = frequency.Split('_')[1];
+                string frequencyValue = runningFreqRT.Split('_')[0];
+                string frequencyUnit = runningFreqRT.Split('_')[1];
                 
                 Conversion.Initialize();
                 string from = Conversion.Get_Unit_Class1(frequencyValue, frequencyUnit);
@@ -580,7 +794,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }
             //Added By Mona
             //Perform the calculations
-            void doClaculations(double angle1,EntityIntersection fromPoint, EntityIntersection toPoint,SceneObjectPart part)
+            void doCalculations(double angle1,EntityIntersection fromPoint, EntityIntersection toPoint,SceneObjectPart part)
             {
                   //m_log.DebugFormat(fromPoint.obj.PrimMaterial.ToString());
 
@@ -598,14 +812,14 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                   m_log.DebugFormat("[distance]" + distance.ToString());
                   if (fromPoint.obj.Name == "Tx")
                   {
-                      pathLoss = CalculatePathlossRays(distance, RayTracer.runningFreqRT, reflecCoeff, 0);
+                      pathLoss = CalculatePathlossRays(distance, reflecCoeff, 0);
                       
                       m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
                   }
                   else
                   {
 
-                      pathLoss = CalculatePathlossRays(distance+TotalDistance, RayTracer.runningFreqRT, reflecCoeff, 0);
+                      pathLoss = CalculatePathlossRays(distance+TotalDistance, reflecCoeff, 0);
                       m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
 
                   }
@@ -628,7 +842,9 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 int i;
                 for (i = 0; i < m_parent.m_prims.Length; i++)
                 {
-                    //Check if the prim can reflect a ray. 
+                    //Check if the prim can reflect a ray 
+                    //For any prim to reflect a ray, please include a "_reflectable" tag in it's name e.g. primname_reflectable. 
+                    //Do this in the world when object is created. 
                     if (m_parent.m_prims[i] is SceneObjectGroup && checkToken("reflectable", m_parent.m_prims[i]))
                     {
                         SceneObjectGroup t = (SceneObjectGroup)m_parent.m_prims[i];
@@ -653,6 +869,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                                 }
 
                                // if (intersect.HitTF == true && (closest.HitTF == false || closest.distance > intersect.distance))
+                                //If the ray intersect something and the angle of incidence is > 0 and its distance is better than all other intersection then...
                                 if (intersect.HitTF == true && getAngleOfIncidenceCos(-ray.Direction,intersect.normal) >= 0 && (closest.HitTF == false || closest.distance >intersect.distance))
                                 {
                                    // m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}>>>>>{1}>>>>{2}!", intersect.ipoint.ToString(), part.AbsolutePosition.Z.ToString(), part.Scale.Z.ToString());
@@ -691,7 +908,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 EntityIntersection currentPos = new EntityIntersection(start, new Vector3(0, 0, 0), true);
 
                 currentPos.obj = m_parent.transmitter.RootPart;
-                //The direction of where this ray is "heading". Note: The direction will change then there is a reflection
+                //The direction of where this ray is "heading". Note: The currentDirection will change then there is a reflection
                 Vector3 currentDirection = direction;
                 //An array of path. To keep track of where intecsection occurs for each reflection. 
                 path.Add(currentPos);
@@ -707,14 +924,15 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     //A ray has origin and direction
                     Ray ray = new Ray(currentPos.ipoint, currentDirection);
                     //Find an exact point where this ray will hitf a prim. Closest var stores attributes of where this intersection occurs. 
-                    EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
+                    //EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
+                    //It doesn't make sense to use m_parent.transmitter.RootPart as the 
+                    EntityIntersection closest = findNextHit(ray, currentPos.obj);
 
                     //If the ray hit something (a prim)
                     if (closest.HitTF)
                     {
                         //If it hit something, then add the intersection as the Ray's path. 
                         path.Add(closest);
-                        //distance += GetDistanceTo(closest.ipoint , currentPos.ipoint);
                         distance += (closest.ipoint - currentPos.ipoint).Length();
                         //if the ray hits the receiver
                         if (closest.obj.ParentGroup.Equals(m_parent.receiver))
@@ -735,13 +953,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 //		m_log.DebugFormat ("[BARE BONES NON SHARED] We HIT the receiver (party)(party)(party)!");
 
                 ready = true;
-            }
-            public double GetDistanceTo(Vector3 a, Vector3 b)
-            {
-                float dx = a.X - b.X;
-                float dy = a.Y - b.Y;
-                float dz = a.Z - b.Z;
-                return Math.Sqrt(dx * dx + dy * dy + dz * dz);
             }
 
             //Author: Thanakorn Tuanwachat

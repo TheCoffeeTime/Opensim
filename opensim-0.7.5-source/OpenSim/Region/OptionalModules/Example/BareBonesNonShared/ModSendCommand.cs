@@ -69,7 +69,6 @@ namespace ModSendCommandExample
          * receiver to the prim called Rx.
          * 
          */
-        string runningFreq = "2.4_ghz";//Default running frequency
         public string Name
         {
             get
@@ -106,23 +105,15 @@ namespace ModSendCommandExample
             Source = source;
         }
 
-        public void PostInitialise()
-        {
-            m_commsMod
-              = m_scene.RequestModuleInterface<IScriptModuleComms>();
-            m_commsMod.OnScriptCommand += ProcessScriptCommand;
-            raytrace.PostInitialise();
-            raytrace.deleteRays();
-            raytrace.drawAllRays();
-        }
-
         // YOUR CODE SHOULD START HERE IN THIS METHOD. 
         void ProcessScriptCommand(UUID scriptId, string reqId, string module, string input1, string input2)
         {
-            // To send message back to the script as an acknowledgement
-            m_commsMod.DispatchReply(scriptId, 1, "Command received: " + module, "");
-            m_commsMod.DispatchReply(scriptId, 1, "String 1: " + input1, "");
-            m_commsMod.DispatchReply(scriptId, 1, "String 2: " + input2, "");
+            // Example of how to send message back to the script as an acknowledgement
+            //m_commsMod.DispatchReply(scriptId, 1, "Command received: " + module, "");
+            //m_commsMod.DispatchReply(scriptId, 1, "String 1: " + input1, "");
+            //m_commsMod.DispatchReply(scriptId, 1, "String 2: " + input2, "");
+
+            //
 
             switch (module)
             {
@@ -135,11 +126,11 @@ namespace ModSendCommandExample
                                     m_commsMod.DispatchReply(scriptId, 1, result.Split('|')[0], "");
                                     break;
 
-                case "RayTrace":    runningFreq = input1;
+                case "RayTrace":    //Initialise variables
+                                    raytrace.Initialise(m_scene, Source, input1, scriptId);
                                     raytrace.deleteRays();
-                                    raytrace.Initialise(m_scene, Source, runningFreq);
                                     raytrace.PostInitialise();
-                                    raytrace.drawAllRays();
+                                    //raytrace.drawAllRays();
                                     break;
 
                 case "DeleteRayTrace":  raytrace.deleteRays();
