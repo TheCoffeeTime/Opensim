@@ -432,7 +432,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             double rayLength = (startPoint - endPoint).Length();
             Vector3 midPoint = (startPoint + endPoint) / 2;
 
-            //Distance along the y-axis and z-axis between 2 points
+            //Distance along the x-axis, y-axis, and z-axis between 2 points
             double xDistance = startPoint.X - endPoint.X;
             double yDistance = startPoint.Y - endPoint.Y;
             double zDistance = startPoint.Z - endPoint.Z;
@@ -449,7 +449,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             double[] rotation = new double[3];
             //Vector3 but in double because I dont want it to do double casting later on. Index 0 = x, 1 = y, 2 = z. 
             rotation[0] = xAxisRotation; rotation[1] = yAxisRotation; rotation[2] = zAxisRotation;
-            addObjectToTheWorld(null, startPoint, dimension, rotation, PrimType.Box);
+            addObjectToTheWorld(null, midPoint, dimension, rotation, PrimType.Box, startPoint);
 
 
         }//drawPlaneRay
@@ -457,13 +457,16 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <summary>
         /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
         /// *There are 2 compulsory fields which are position and primType. The rest are optionals. 
+        /// There is a bug on rotation around z-axis. I currrent fix that bug by keep rotating the ray until it intersects with the 'next' reveiver. 
+        /// By Thanakorn Tuanwachat 07/2013
         /// </summary>
         /// <param name="name">Name of this object. Use default value "primative" if null is given</param>
         /// <param name="position">"Vector(x y z) where x, y, and z represent the coordinates in the world"</param>
         /// <param name="dimension">"Vector(x, y, z) where x, y, and z represent the size of the object"</param>
         /// <param name="rotations">double(x, y, z) where x, y, and z represent angle of rotation from its axis in radian</param>
         /// <param name="primType">There are only 3 types which are Box, </param>
-        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, double[] rotation, int primType)
+        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, double[] rotation, int primType,
+                                        Vector3 startPoint)
         {
             //Generate UUID
             UUID rayUUID = UUID.Random();
@@ -492,15 +495,14 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             if(rotation != null)
             {
                 //Need to convert to given angle (in radian) into its Cos form as it is required as a parameter. 
+                //*The rotation on z-axis currently produces Bug. I fix this by keep rotating until the ray intersect the point
                 //For more information please use the TROVE Developer Documentations. 
-                m_log.DebugFormat("[DRAWING RAY]: x = " + (rotation[0]*(180.0 / Math.PI)).ToString());
-                m_log.DebugFormat("[DRAWING RAY]: y = " + (rotation[1] * (180.0 / Math.PI)).ToString());
-                m_log.DebugFormat("[DRAWING RAY]: z = " + (rotation[2] * (180.0 / Math.PI)).ToString());
-
-                m_log.DebugFormat("[DRAWING RAY]: x = " + ((float)Math.Cos(rotation[0])).ToString());
-                m_log.DebugFormat("[DRAWING RAY]: y = " + ((float)Math.Cos(rotation[1])).ToString());
-                m_log.DebugFormat("[DRAWING RAY]: z = " + ((float)Math.Cos(rotation[2])).ToString());
-                sog.RootPart.UpdateRotation(Quaternion.CreateFromEulers((float)rotation[0], (float)rotation[1], (float)rotation[2]));
+                double increment = (0.01 * 2 * Math.PI);
+                while (!rayIntersectPoint(startPoint, position, dimension, rotation))
+                {
+                    sog.RootPart.UpdateRotation(Quaternion.CreateFromEulers((float)rotation[0], (float)rotation[1], (float)rotation[2]));
+                    rotation[2] += increment;
+                }//while
             }//if
             if(name != null)
             {
@@ -515,6 +517,15 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             sog.ScheduleGroupForFullUpdate();
             sog.HasGroupChanged = true;
         }//addObjectToTheWorld
+
+        //Original source:http://wiki.secondlife.com/wiki/Geometric#Box_and_Point.2C_Intersection_Boolean
+        public bool rayIntersectPoint(Vector3 pointOrigin, Vector3 boxOrigin, Vector3 boxSize, double[] boxRotation)
+        {
+            
+            Vector3 eB = boxSize * 0.5f; 
+            Vector3 rA = (pointOrigin-boxOrigin)/(new Vector3((float)boxRotation[0], (float)boxRotation[1], (float)boxRotation[2]));
+            return (rA.X<eB.X && rA.X>-eB.X && rA.Y<eB.Y && rA.Y>-eB.Y && rA.Z<eB.Z && rA.Z>-eB.Z); }
+        }//rayIntersectPoint
 
         public class OneRayReflections
         {
