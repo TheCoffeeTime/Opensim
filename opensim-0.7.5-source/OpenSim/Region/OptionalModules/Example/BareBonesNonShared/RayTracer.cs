@@ -311,24 +311,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
             }//foreach
 
-            //int i;
-            //for (i = 0; i < MAX_REFLECTIONS; i++)
-                //m_log.DebugFormat("[BARE BONES NON SHARED] {0} reflections has #{1} hits!", i, hits[i].Count);
-
-            //Mihail Code//
-            // you can get an array of 2-reflections 
-            // by calling hits[2].toArray(). 
-            //int y=0;
-            //for (y = 0; y < hits.Length; y++)
-            //{
-
-            //    foreach (OneRayReflections r in hits[y])
-            //    {
-            //         r.drawPath();
-            //        //break;
-            //    }
-            //}
-
             m_log.DebugFormat("[BARE BONES NON SHARED] Finnished Raytracing!");
 
         }
@@ -420,36 +402,38 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <summary>
         /// Draw a ray (which has a shape of rectangle but with thin y and z value) from 2 given points. 
         /// The ray is drawn on the mid point between the 2 given points then rotate around y-axis and z-axis
-        /// to make the ray connect between 2 points. For more information, please have a look at online TROVE Developer Documentations
-        /// 
+        /// to make the ray connect between 2 points. For more information, please have a look at online TROVE Developer Documentations.
         /// By Thanakorn Tuanwachat 07/2013
         /// </summary>
         /// <param name="startPoint">The point where the ray start</param>
         /// <param name="endPoint">The point where the ray end</param>
         public void drawPlaneRay(Vector3 startPoint, Vector3 endPoint)
         {
-            //Distance and Mid-point between 2 points 
+            //Distance and Mid-point between 2 points. vectorFromStartToEnd can be used to represent a distance 
+            //from x.end to x.start, y.end to y.start, z.end to z.start
+
             double rayLength = (startPoint - endPoint).Length();
             Vector3 midPoint = (startPoint + endPoint) / 2;
+            Vector3 vectorFromStartToEnd = endPoint - startPoint;
 
-            //Distance along the x-axis, y-axis, and z-axis between 2 points
-            double xDistance = startPoint.X - endPoint.X;
-            double yDistance = startPoint.Y - endPoint.Y;
-            double zDistance = startPoint.Z - endPoint.Z;
             //Angles for rotating the objects (dervied from x, y, and z distances)
             //See developer documentations for more details
+
             double xAxisRotation = 0;
-            double yAxisRotation = Math.Atan(zDistance / xDistance * (-1.0));
-            double zAxisRotation = Math.Atan(yDistance / xDistance);
+            double yAxisRotation = Math.Atan(vectorFromStartToEnd.Z / vectorFromStartToEnd.X * -1);
+            double zAxisRotation = Math.Atan(vectorFromStartToEnd.Y / vectorFromStartToEnd.X);
 
             //Start drawing the ray
             //Set up parameters for drawing an object in the world. Width = 0.2 unit and depth = 0.01 unit.
+
             float rayWidth = 0.05f; float rayDepth = 0.05f;
             Vector3 dimension = new Vector3((float)rayLength, (float)rayWidth, (float)rayDepth);
             double[] rotation = new double[3];
+
             //Vector3 but in double because I dont want it to do double casting later on. Index 0 = x, 1 = y, 2 = z. 
+
             rotation[0] = xAxisRotation; rotation[1] = yAxisRotation; rotation[2] = zAxisRotation;
-            addObjectToTheWorld(null, midPoint, dimension, rotation, PrimType.Box, startPoint);
+            addObjectToTheWorld(null, midPoint, dimension, rotation, PrimType.Cylinder, startPoint);
 
 
         }//drawPlaneRay
@@ -457,7 +441,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <summary>
         /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
         /// *There are 2 compulsory fields which are position and primType. The rest are optionals. 
-        /// There is a bug on rotation around z-axis. I currrent fix that bug by keep rotating the ray until it intersects with the 'next' reveiver. 
         /// By Thanakorn Tuanwachat 07/2013
         /// </summary>
         /// <param name="name">Name of this object. Use default value "primative" if null is given</param>
@@ -468,9 +451,13 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, double[] rotation, int primType,
                                         Vector3 startPoint)
         {
-            //Generate UUID
+            //Generate a new UUID for this ray
+
             UUID rayUUID = UUID.Random();
+            int X = 0; int Y = 1; int Z = 2;
+
             //Place an object into the world. It can either be Box, Sphere, or Cylinder. according to the given PrimType
+
             SceneObjectGroup sog;
             switch (primType)
             {
@@ -488,21 +475,27 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }//switch
 
             //Check if it is possible to set thses parameters. If not then use default value
+
             if(dimension != null)
             {
               sog.RootPart.Scale = dimension;
             }
             if(rotation != null)
             {
-                //Need to convert to given angle (in radian) into its Cos form as it is required as a parameter. 
-                //*The rotation on z-axis currently produces Bug. I fix this by keep rotating until the ray intersect the point
+                //Update object rotation. Create a model for rotating around z-axis. Create a model for rotating around
+                //imagine y-axis. Create a model for rotation around imagine x-axis. Combine the 3 models then apply
+                //that transformation to the Ray. (Note: At the moment, we only need rotation around z-axis and y-axis)
                 //For more information please use the TROVE Developer Documentations. 
-                double increment = (0.01 * 2 * Math.PI);
-                while (!rayIntersectPoint(startPoint, position, dimension, rotation))
-                {
-                    sog.RootPart.UpdateRotation(Quaternion.CreateFromEulers((float)rotation[0], (float)rotation[1], (float)rotation[2]));
-                    rotation[2] += increment;
-                }//while
+
+                Vector3 newYaxis = new Vector3(0, 1, 0);
+                Matrix4 rotateZaxis = new Matrix4((float)Math.Cos(rotation[Z]), (float)Math.Sin(rotation[Z] * -1), 0, 0,
+                                                  (float)Math.Sin(rotation[Z]), (float)Math.Cos(rotation[Z]), 0, 0,
+                                                  0, 0, 1, 0,
+                                                  0, 0, 0, 1);
+                newYaxis.Normalize();
+                newYaxis = Vector3.Transform(newYaxis, rotateZaxis);
+                Quaternion newRotation = Quaternion.CreateFromEulers(0, 0, (float)rotation[Z]) * Quaternion.CreateFromAxisAngle(newYaxis, (float)rotation[Y]);
+                sog.RootPart.UpdateRotation(newRotation);
             }//if
             if(name != null)
             {
@@ -517,15 +510,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             sog.ScheduleGroupForFullUpdate();
             sog.HasGroupChanged = true;
         }//addObjectToTheWorld
-
-        //Original source:http://wiki.secondlife.com/wiki/Geometric#Box_and_Point.2C_Intersection_Boolean
-        public bool rayIntersectPoint(Vector3 pointOrigin, Vector3 boxOrigin, Vector3 boxSize, double[] boxRotation)
-        {
-            
-            Vector3 eB = boxSize * 0.5f; 
-            Vector3 rA = (pointOrigin-boxOrigin)/(new Vector3((float)boxRotation[0], (float)boxRotation[1], (float)boxRotation[2]));
-            return (rA.X<eB.X && rA.X>-eB.X && rA.Y<eB.Y && rA.Y>-eB.Y && rA.Z<eB.Z && rA.Z>-eB.Z); }
-        }//rayIntersectPoint
 
         public class OneRayReflections
         {
@@ -854,8 +838,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 for (i = 0; i < m_parent.m_prims.Length; i++)
                 {
                     //Check if the prim can reflect a ray 
-                    //For any prim to reflect a ray, please include a "_reflectable" tag in it's name e.g. primname_reflectable. 
-                    //Do this in the world when object is created. 
+                    //For any prim to reflect a ray, please include a "_reflectable" tag in it's name e.g. primName_reflectable. 
+                    //Do this in the world object (in its property). 
                     if (m_parent.m_prims[i] is SceneObjectGroup && checkToken("reflectable", m_parent.m_prims[i]))
                     {
                         SceneObjectGroup t = (SceneObjectGroup)m_parent.m_prims[i];
@@ -911,19 +895,17 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             /// </summary>
             public void followRayReflections()
             {
-                //m_log.DebugFormat ("[BARE BONES NON SHARED] At least the thread starts!");
-                //m_log.DebugFormat ("[BARE BONES NON SHARED] At least the thread {0}!", m_parent.m_prims.Length);
+
+                //path: An array of path. To keep track of where intecsection occurs for each reflection. 
+                //distance: Total distance travel from transimitter to the receiver.
+                //currentPos: The direction of where this ray is "heading". Note: The currentDirection will change then there is a reflection
+                //hope: total number of reflection so far. 
 
                 path = new List<EntityIntersection>();
-
                 EntityIntersection currentPos = new EntityIntersection(start, new Vector3(0, 0, 0), true);
-
                 currentPos.obj = m_parent.transmitter.RootPart;
-                //The direction of where this ray is "heading". Note: The currentDirection will change then there is a reflection
                 Vector3 currentDirection = direction;
-                //An array of path. To keep track of where intecsection occurs for each reflection. 
-                path.Add(currentPos);
-                //Total distance travel from transimitter to the receiver. 
+                path.Add(currentPos); 
                 double distance = 0;
                 reachesReceiver = false;
                 int hops = 0;
@@ -934,9 +916,11 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
                     //A ray has origin and direction
                     Ray ray = new Ray(currentPos.ipoint, currentDirection);
+                    
                     //Find an exact point where this ray will hitf a prim. Closest var stores attributes of where this intersection occurs. 
                     //EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
                     //It doesn't make sense to use m_parent.transmitter.RootPart as the 
+                    
                     EntityIntersection closest = findNextHit(ray, currentPos.obj);
 
                     //If the ray hit something (a prim)
@@ -945,12 +929,14 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                         //If it hit something, then add the intersection as the Ray's path. 
                         path.Add(closest);
                         distance += (closest.ipoint - currentPos.ipoint).Length();
+
                         //if the ray hits the receiver
                         if (closest.obj.ParentGroup.Equals(m_parent.receiver))
                         {
                             reachesReceiver = true;
                             break;
                         }//if
+
                         //Add this intersection to path
                         //Use a specific model to calculate a relfection
                         currentDirection = getReflectedRay(currentDirection, closest.normal);
@@ -959,10 +945,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     }//if it didn't hit something, then there is no point keep tracking it...
                     else break;
                 }
-
-                //	if(reachesReceiver)
-                //		m_log.DebugFormat ("[BARE BONES NON SHARED] We HIT the receiver (party)(party)(party)!");
-
                 ready = true;
             }
 
