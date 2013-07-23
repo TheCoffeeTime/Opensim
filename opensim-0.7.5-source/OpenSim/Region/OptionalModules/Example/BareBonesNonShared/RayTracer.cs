@@ -31,7 +31,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         public const double IRON = 14;
         
     }
-
     static class PrimType
     {
         public const int Box = 1;
@@ -409,30 +408,30 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <param name="endPoint">The point where the ray end</param>
         public void drawPlaneRay(Vector3 startPoint, Vector3 endPoint)
         {
+            //Set up parameters for drawing an object in the world. Width = 0.2 unit and depth = 0.01 unit.
+            //Length of the ray is the distance from the two given points
+
+            float rayWidth = 0.05f; 
+            float rayDepth = 0.05f;
+
             //Distance and Mid-point between 2 points. vectorFromStartToEnd can be used to represent a distance 
             //from x.end to x.start, y.end to y.start, z.end to z.start
 
             double rayLength = (startPoint - endPoint).Length();
             Vector3 midPoint = (startPoint + endPoint) / 2;
             Vector3 vectorFromStartToEnd = endPoint - startPoint;
+            Vector3 xAxis = new Vector3(1, 0, 0);
+            Vector3 yAxis = new Vector3(0, 1, 0);
+            Vector3 zAxis = new Vector3(0, 0, 1);
 
             //Angles for rotating the objects (dervied from x, y, and z distances)
             //See developer documentations for more details
 
-            double xAxisRotation = 0;
-            double yAxisRotation = Math.Atan(vectorFromStartToEnd.Z / vectorFromStartToEnd.X * -1);
-            double zAxisRotation = Math.Atan(vectorFromStartToEnd.Y / vectorFromStartToEnd.X);
+            Quaternion rotation = Vector3.RotationBetween(xAxis, vectorFromStartToEnd);
 
             //Start drawing the ray
-            //Set up parameters for drawing an object in the world. Width = 0.2 unit and depth = 0.01 unit.
 
-            float rayWidth = 0.05f; float rayDepth = 0.05f;
             Vector3 dimension = new Vector3((float)rayLength, (float)rayWidth, (float)rayDepth);
-            double[] rotation = new double[3];
-
-            //Vector3 but in double because I dont want it to do double casting later on. Index 0 = x, 1 = y, 2 = z. 
-
-            rotation[0] = xAxisRotation; rotation[1] = yAxisRotation; rotation[2] = zAxisRotation;
             addObjectToTheWorld(null, midPoint, dimension, rotation, PrimType.Cylinder, startPoint);
 
 
@@ -440,7 +439,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
         /// <summary>
         /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
-        /// *There are 2 compulsory fields which are position and primType. The rest are optionals. 
+        /// *There are 1 compulsory fields which is position of the object. The rest are optionals. 
         /// By Thanakorn Tuanwachat 07/2013
         /// </summary>
         /// <param name="name">Name of this object. Use default value "primative" if null is given</param>
@@ -448,13 +447,12 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <param name="dimension">"Vector(x, y, z) where x, y, and z represent the size of the object"</param>
         /// <param name="rotations">double(x, y, z) where x, y, and z represent angle of rotation from its axis in radian</param>
         /// <param name="primType">There are only 3 types which are Box, </param>
-        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, double[] rotation, int primType,
+        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, Quaternion rotation, int primType,
                                         Vector3 startPoint)
         {
             //Generate a new UUID for this ray
 
             UUID rayUUID = UUID.Random();
-            int X = 0; int Y = 1; int Z = 2;
 
             //Place an object into the world. It can either be Box, Sphere, or Cylinder. according to the given PrimType
 
@@ -471,7 +469,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     sog = new SceneObjectGroup(new UUID(rayUUID), position, OpenSim.Framework.PrimitiveBaseShape.CreateCylinder());
                     break;
                 default:
-                    throw new Exception("Invalid PrimType");
+                    sog = new SceneObjectGroup(new UUID(rayUUID), position, OpenSim.Framework.PrimitiveBaseShape.CreateBox());
+                    break;
             }//switch
 
             //Check if it is possible to set thses parameters. If not then use default value
@@ -482,20 +481,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }
             if(rotation != null)
             {
-                //Update object rotation. Create a model for rotating around z-axis. Create a model for rotating around
-                //imagine y-axis. Create a model for rotation around imagine x-axis. Combine the 3 models then apply
-                //that transformation to the Ray. (Note: At the moment, we only need rotation around z-axis and y-axis)
-                //For more information please use the TROVE Developer Documentations. 
-
-                Vector3 newYaxis = new Vector3(0, 1, 0);
-                Matrix4 rotateZaxis = new Matrix4((float)Math.Cos(rotation[Z]), (float)Math.Sin(rotation[Z] * -1), 0, 0,
-                                                  (float)Math.Sin(rotation[Z]), (float)Math.Cos(rotation[Z]), 0, 0,
-                                                  0, 0, 1, 0,
-                                                  0, 0, 0, 1);
-                newYaxis.Normalize();
-                newYaxis = Vector3.Transform(newYaxis, rotateZaxis);
-                Quaternion newRotation = Quaternion.CreateFromEulers(0, 0, (float)rotation[Z]) * Quaternion.CreateFromAxisAngle(newYaxis, (float)rotation[Y]);
-                sog.RootPart.UpdateRotation(newRotation);
+                sog.RootPart.UpdateRotation(rotation);
             }//if
             if(name != null)
             {
@@ -520,10 +506,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             RayTracer m_parent;
             public bool ready;
             private RayTracer rayTracer;
-            private Vector3 vector3;
-            private Vector3 dir;
             //Add the caculations done
-            private double angleOfIncidence = 0;
             double reflecCoeff=0;
             double refloss11=0;
             double transcoeff=0;   
@@ -878,9 +861,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                                         closest.obj = part;
                                     }
                                        // if (closest.obj.Name.CompareTo("SlideDoor") == 0 )
-                                      // 
-
-                                   
                                 }//if
                             }//if
                         });
