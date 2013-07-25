@@ -133,8 +133,10 @@ namespace ModSendCommandExample
                                     //raytrace.drawAllRays();
                                     break;
 
-                case "DeleteRayTrace":  raytrace.deleteRays();
-                                        break;
+                case "DeleteRayTrace":  
+                                    
+                                    raytrace.deleteRays();
+                                    break;
 
                 case "IDtype1":     raytrace.deleteRays();
                                     raytrace.drawRaysWithDifferentNumberOfReflections(0);
