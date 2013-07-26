@@ -1,0 +1,50 @@
+            /*
+            EntityIntersection intersectPoint = null;
+            Vector3 reflectedVector = new Vector3();
+            for(int i = 0; i < m_prims.Length; i++)
+            {
+                if (m_prims[i] is SceneObjectGroup && checkToken("reflectable", m_prims[i]))
+                {
+                    SceneObjectGroup t = (SceneObjectGroup)m_prims[i];
+                    int found = 0;
+                       
+                    // look at each part that makes the group
+                    t.ForEachPart(delegate(SceneObjectPart part)
+                    {
+                        if(found == 4)
+                        {
+                            Vector3 position = part.AbsolutePosition;
+                            Vector3 directionVector = position - transmitter.AbsolutePosition;
+                            directionVector.Normalize();
+
+                            Ray ray = new Ray(transmitter.AbsolutePosition, directionVector);
+                            intersectPoint = part.TestIntersectionOBB(ray, part.ParentGroup.GroupRotation,true, false);
+                            drawPlaneRay(transmitter.AbsolutePosition, intersectPoint.ipoint);
+                            reflectedVector = getReflectedRay(directionVector, intersectPoint.normal);
+                            found++;
+                        }
+                        else found++;
+                    });//forEachPart
+                }//for
+            }//for
+
+            Ray ray1 = new Ray(intersectPoint.ipoint, reflectedVector);
+            for (int i = 0; i < m_prims.Length; i++)
+            {
+                if (m_prims[i] is SceneObjectGroup && checkToken("reflectable", m_prims[i]))
+                {
+                    SceneObjectGroup t = (SceneObjectGroup)m_prims[i];
+                    // look at each part that makes the group
+                    t.ForEachPart(delegate(SceneObjectPart part)
+                    {
+
+                        if (part.TestIntersectionOBB(ray1, part.ParentGroup.GroupRotation, true, false).HitTF)
+                        {
+                            Vector3 destination = part.TestIntersectionOBB(ray1, part.ParentGroup.GroupRotation, true, false).ipoint;
+                            if (checkPointIntersectPrim(destination, part, 0.05f))
+                              drawPlaneRay(intersectPoint.ipoint, destination);
+                        }//if
+                    });//forEachPart
+                }//for
+            }//for
+             */

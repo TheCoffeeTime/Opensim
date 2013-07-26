@@ -127,7 +127,7 @@ namespace ModSendCommandExample
                                     break;
 
                 case "RayTrace":    //Initialise variables
-                                    raytrace.Initialise(m_scene, Source, input1, scriptId);
+                                    raytrace.Initialise(m_scene, input1, scriptId);
                                     raytrace.deleteRays();
                                     raytrace.PostInitialise();
                                     //raytrace.drawAllRays();
