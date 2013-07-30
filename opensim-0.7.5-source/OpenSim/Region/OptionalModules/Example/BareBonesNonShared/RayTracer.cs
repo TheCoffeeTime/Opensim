@@ -50,6 +50,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         Scene m_scene=null;                 //scene in the world which contains all the objects in the world 
         EntityBase[] m_prims;               //array of entity. (This will be used to stored all the entity in the world)
         IScriptModuleComms m_commsMod;      //Can be used to send message back to the script
+        List<SceneObjectPart> worldObjects; //All objects in the world which its distance to the transmitter < MAX_DISTANCE
         SceneObjectGroup transmitter;       //Transmitter in the world
         SceneObjectGroup receiver;          //receiver in the world
         List<PathFromTxToRy>[] hits;        //Array of paths from Transmitter to the receiver.
@@ -86,12 +87,10 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             int noOfInitVar = initialiseVariables(setOfvariables);
             m_log.DebugFormat("[RAY TRACER INITIALISATION]: total number of initialised variables = " + noOfInitVar.ToString());
             
+            //max_reflection + 1 as it starts from 0 reflection (line of sight)
+            //Array of list of paths. e.g. hits[1] = list of paths for one reflections. 
+
             hits = new List<PathFromTxToRy>[MAX_REFLECTIONS + 1];
-            for (int i = 0; i <= MAX_REFLECTIONS; i++)
-            {
-                hits[i] = new List<PathFromTxToRy>();
-                hits[i].Clear();
-            }
             m_log.DebugFormat("[RAY TRACER INITIALISATION]: Complete!");
 
         }
@@ -185,22 +184,39 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// </summary>
         public void PostInitialise()
         {
-			try{ m_prims = m_scene.GetEntities(); } catch(Exception ex){ }
+            //Get all the entities in the world
+			try { m_prims = m_scene.GetEntities(); } catch(Exception ex){ }
 
+            //Initialise transmitter and receiver.
             if (!findTransmitterAndReceiver())
             {
                 m_log.DebugFormat("[Ray Tracer PostInit] Transmitter and/or receiver not Found!");
                 throw new Exception("Cannot find either Transmitter Tx or Receiver Ry");
             }
-            else
-            {
-                m_log.DebugFormat("[Ray Tracer PostInit] {0}!", receiver.RootPart.Scale);
 
-                //rayTraceFromTransmitterBrutefoce();
-                getRaysPath();
-                //testPoint();
+            //Initialise worldObjects. WorldObjects contains all the parts of the objects in the world which
+            //the distance from itself to the transmitter is less than the MAX_DISTANCE. This is to reduce the
+            //number of parts that we have to look at, i.e. reduces the computations time to find reflections. 
+
+            worldObjects = new List<SceneObjectPart>();
+            for (int i = 0; i < m_prims.Length; i++)
+            {
+                if (m_prims[i] is SceneObjectGroup)
+                {
+                    SceneObjectGroup sog = (SceneObjectGroup)m_prims[i];
+                    sog.ForEachPart(delegate(SceneObjectPart part)
+                    {
+                        if (Vector3.Distance(part.AbsolutePosition, transmitter.RootPart.AbsolutePosition) <= MAX_DISTANCE)
+                        {
+                            worldObjects.Add(part);
+                        }
+                    });
+                }
             }
 
+            //rayTraceFromTransmitterBrutefoce();
+            getRaysPath();
+            //testPoint();
         }
         /// <summary>
         /// Find if transmitter and receiver exist by checking all the objects in the world name. 
@@ -375,23 +391,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <summary>
         /// A point on a prim which is the reflection point of another 2 points. 
         /// It also contains variable 'found' which indicates whether if this reflection point
-        /// has exist. (it found = false, then don't use it)
+        /// exists. (it found = false, then don't use it)
         /// </summary>
-        public class ReflectionPoint
-        {
-            public Vector3 reflectionPoint;
-            public bool found;
-
-            public ReflectionPoint()
-            {
-                found = false;
-            }
-            public ReflectionPoint(Vector3 _reflectionPoint, bool _found)
-            {
-                reflectionPoint = _reflectionPoint;
-                found = _found;
-            }
-        }
         /// <summary>
         /// Delete all the object in the world whose name = Ray
         /// </summary>
@@ -506,28 +507,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         { 
             return new List<PathFromTxToRy>();
         }
-
-        public void drawRaysWithDifferentNumberOfReflections(int numRef)
-        {
-            foreach (PathFromTxToRy r in hits[numRef])
-            {
-                r.drawPath(numRef);
-                //break;
-            }
-        }
-        public void drawAllRays()
-        {
-            int y=0;
-            for (y = 0; y < hits.Length; y++)
-            {
-
-                foreach (PathFromTxToRy r in hits[y])
-                {
-                    r.drawPath(y);
-                    //break;
-                }
-            }
-        }
         /// <summary>
         /// Get the angle of incidence cosine when the incidence vector given and the plane normal.
         /// </summary>
@@ -560,25 +539,16 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// </summary>
         public void getRaysPath()
         {
-            for(int i = 0; i < m_prims.Length; i++)
+            worldObjects.ForEach(delegate(SceneObjectPart part)
             {
-                if (m_prims[i] is SceneObjectGroup && checkToken("reflectable", m_prims[i]))
+                ReflectionPoint reflectedPoint = findReflectionPoint
+                    (transmitter.RootPart.AbsolutePosition, receiver.RootPart.AbsolutePosition, part);
+                if (reflectedPoint.found)
                 {
-                    SceneObjectGroup t = (SceneObjectGroup)m_prims[i];
-                       
-                    // look at each part that makes the group
-                    t.ForEachPart(delegate(SceneObjectPart part)
-                    {
-                        ReflectionPoint reflectedPoint = findReflectionPoint
-                            (transmitter.RootPart.AbsolutePosition, receiver.RootPart.AbsolutePosition, part);
-                        if (reflectedPoint.found)
-                        {
-                            drawPlaneRay(transmitter.RootPart.AbsolutePosition, reflectedPoint.reflectionPoint);
-                            drawPlaneRay(reflectedPoint.reflectionPoint, receiver.RootPart.AbsolutePosition);
-                        }//if
-                    });//forEachPart
-                }//for
-            }//for
+                    drawPlaneRay(transmitter.RootPart.AbsolutePosition, reflectedPoint.reflectionPoint);
+                    drawPlaneRay(reflectedPoint.reflectionPoint, receiver.RootPart.AbsolutePosition);
+                }//if
+            });//forEachPart
         }
         /// <summary>
         /// Draw a ray (which has a shape of rectangle but with thin y and z value) from 2 given points. 
@@ -618,7 +588,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         }
         /// <summary>
         /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
-        /// *There are 1 compulsory fields which is position of the object. The rest are optionals. 
+        /// *There is 1 compulsory fields which is position of the object. The rest are optionals. 
         /// By Thanakorn Tuanwachat 07/2013
         /// </summary>
         /// <param name="name">Name of this object. Use default value "primative" if null is given</param>
@@ -626,8 +596,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <param name="dimension">"Vector(x, y, z) where x, y, and z represent the size of the object"</param>
         /// <param name="rotations">double(x, y, z) where x, y, and z represent angle of rotation from its axis in radian</param>
         /// <param name="primType">There are only 3 types which are Box, </param>
-        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, Quaternion rotation, int primType,
-                                        Vector3 transmitterPos)
+        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, Quaternion rotation, int primType, Vector3 transmitterPos)
         {
             //Generate a new UUID for this ray
 
@@ -717,13 +686,57 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             else
                 return false;
         }
+        public class ReflectionPoint
+        {
+            public Vector3 reflectionPoint;
+            public bool found;
 
+            public ReflectionPoint()
+            {
+                found = false;
+            }
+            public ReflectionPoint(Vector3 _reflectionPoint, bool _found)
+            {
+                reflectionPoint = _reflectionPoint;
+                found = _found;
+            }
+        }
+        public class Ray2
+        {
+            Vector3 startPoint;
+            Vector3 endPoint;
+            double maxPower;
+            double minPower;
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="_ray"> A ray from starting point and its direction</param>
+            /// <param name="_maxPower">The maximum transmittion power of the stating point</param>
+            public Ray2(Vector3 _startPoint, Vector3 _endPoint, double startPower)
+            {
+                startPoint = _startPoint;
+                endPoint = _endPoint;
+                maxPower = startPower;
+            }//constructor
+
+            /// <summary>
+            /// Get a power in dBW at a given point. Calculate the distance from the start point to
+            /// the given point then use that distance to calculate the new power. 
+            /// </summary>
+            /// <param name="point"></param>
+            /// <returns></returns>
+            public double getStrengthAt(Vector3 point)
+            {
+                return 0;
+            }//getStrengthAt
+        }
         public class PathFromTxToRy
         {
             public Vector3 transmitterPos;                      //Transmitter position
-            public Vector3 direction;                           //Direction vector of the first ray
+            public Vector3 direction;                           //Direction vector of the first ray (For BlindSearch)
             public List<EntityIntersection> intersectionPoints; //List of intersection points from Tx to Ry
-            public bool reachesReceiver;                        //Does this path reach the reveicer?
+            public bool reachesReceiver;                        //Has this path reached the reveicer?
             RayTracer rayTracerModel;                           //Ray tracer model. (The method used to create this object)
             public int noOfReflection = 0;                      //Total number of reflection of this path. 
 
@@ -744,84 +757,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 direction = _direction;
                 transmitterPos = _start;
             }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <param name="fromPoint"></param>
-            /// <param name="toPoint"></param>
-            /// <param name="numRef"></param>
-            /// <author> Mona </author>
-            public void drawLine(EntityIntersection fromPoint, EntityIntersection toPoint, int numRef)
-            {
-                Vector3 dir = toPoint.ipoint - fromPoint.ipoint;
-                // angle =RadianToDegree( Math.Acos((double)(getAngleOfIncidenceCos(-dir, toPoint.normal))));
-                // m_log.Info("[ANGLE]"+angle.ToString());
-                // doCalculations(angle,fromPoint,toPoint);
-
-                /////////////////
-                // 5.0 is the speres used for a unit length
-                // increase them to make them more dense
-                int k = (int)Math.Ceiling(dir.Length() * 5.0);
-
-                if (k < 2)
-                    k = 2;
-
-                // the distance between two spheres on the path
-                Vector3 delta = dir / (k - 1);
-                Vector3 pos = new Vector3(fromPoint.ipoint);
-                int i;
-                //Added by Mona//////
-                //Building uuid for each object//
-                string uuid = "";
-                int uuidpart1 = 11111111;
-                int uuidpart2 = 1111;
-                Int64 uuidpart3 = 111111111111;
-                ////////////////////////////////
-
-                UUID ncAssetUuid = UUID.Random();
-                UUID ncItemUuid = UUID.Random();
-                for (i = 0; i < k - 1; i++)
-                {
-                    uuid = uuidpart1.ToString() + "-" + uuidpart2.ToString() + "-" + uuidpart2.ToString() + "-" + uuidpart2.ToString() + "-" + uuidpart3.ToString();
-                    pos = pos + delta;
-
-                    SceneObjectGroup sog = new SceneObjectGroup(new UUID(uuid), pos, OpenSim.Framework.PrimitiveBaseShape.CreateSphere());
-
-                    sog.RootPart.Scale = new Vector3(0.1f, 0.1f, 0.1f);
-
-                    SceneObjectPart part = new SceneObjectPart();
-
-                    part = sog.RootPart;
-
-                    sog.Name = "Rays";
-                    //sog.SetRootPart(part);
-                    part.Color = Color.FromArgb(255, 255, 0, 0);
-                    part.Material = (byte)Material.Metal;
-
-
-                    //doCalculations(angle, fromPoint, toPoint, part);
-                    //Important to add scripts to prims on the client side//
-                    //m_log.Info("Add touch script");
-                    //Added by Mona///
-                    //Call method to add touchScripts//
-                    //addTouchScript(sog, part);
-                    //m_log.Info("Touch script added.");
-                    // tHIS SHOULD BE REMOVED !!!
-
-                    rayTracerModel.m_scene.AddNewSceneObject(sog, false);
-                    sog.ScheduleGroupForFullUpdate();
-                    sog.HasGroupChanged = true;
-
-                    // part.Inventory.CreateScriptInstance(taskItem, 0, false, m_parent.m_scene.DefaultScriptEngine, 0);
-                    ////Added by Mona//////
-                    uuidpart1++;
-                    uuidpart2++;
-                    uuidpart3++;
-                    //////////////////////
-
-                }//for
-            }//drawLine
 
             /// <summary>
             /// This function add a touch script to each rezzed prim
@@ -994,31 +929,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }
             /// </summary>
             float TotalDistance = 0;
-            public void drawPath(int numRef)
-            {
-                m_log.DebugFormat("[BARE BONES NON SHARED] drawing path!");
 
-                int i = 0;
-                EntityIntersection last = new EntityIntersection();
-
-                foreach (EntityIntersection next in intersectionPoints)
-                {
-
-                    m_log.DebugFormat("[BARE BONES NON SHARED]{0}->{1}, {2}!", i, next.obj.Name, next.obj.GroupID);
-                    TotalDistance = 0;
-                    if (i > 0)
-                    {
-                        drawLine(last, next, numRef);
-                        // To figure out how the path loss of a ray can be calcuted after it hits a wall !!!
-                        TotalDistance += Vector3.Distance(next.obj.AbsolutePosition, last.obj.AbsolutePosition);
-
-                    }
-                    i++;
-                    last = next;
-                }
-                m_log.DebugFormat("[BARE BONES NON SHARED] drawing path!");
-
-            }
             //Added By Mona
             //Perform the calculations
             void doCalculations(double angle1, EntityIntersection fromPoint, EntityIntersection toPoint, SceneObjectPart part)

@@ -139,31 +139,24 @@ namespace ModSendCommandExample
                                     break;
 
                 case "IDtype1":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(0);
                                     break;
 
                 case "IDtype2":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(1);
                                     break;
 
                 case "IDtype3":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(2);
                                     break;
 
                 case "IDtype4":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(3);
                                     break;
 
                 case "IDtype5":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(4);
                                     break;
 
                 case "IDtype6":     raytrace.deleteRays();
-                                    raytrace.drawRaysWithDifferentNumberOfReflections(5);
                                     break;
 
                 case "IDtype7":     raytrace.deleteRays();
-                                    raytrace.drawAllRays();
                                     break;
 
             }//switch
