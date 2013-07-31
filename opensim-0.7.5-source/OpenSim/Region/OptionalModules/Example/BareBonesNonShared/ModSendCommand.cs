@@ -158,8 +158,25 @@ namespace ModSendCommandExample
 
                 case "IDtype7":     raytrace.deleteRays();
                                     break;
-
+                case "GetMaterial": getMaterial();
+                                    break;
             }//switch
         }//ProcessScriptCommand
+
+        void getMaterial()
+        {
+            EntityBase[] allEntities = m_scene.GetEntities();
+            for (int i = 0; i < allEntities.Length; i++)
+            {
+                if (allEntities[i] is SceneObjectGroup)
+                {
+                    SceneObjectGroup sog = (SceneObjectGroup)allEntities[i];
+                    if (sog.RootPart.Name.CompareTo("getMaterial") == 0)
+                    {
+                        sog.RootPart.SetText(sog.RootPart.Material.ToString());
+                    }
+                }//if
+            }//for
+        }
     }//class
 }//name space

@@ -23,12 +23,41 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
     /// Added By Mona
     /// Determine the refractive index of different PrimMaterials
     /// </summary>
-    static class PrimMaterial
+    public static class RefrectiveIndex
     {
-        public const double AIR = 1;
+        public const double STONE = 5;
+        public const double METAL = 14;
+        public const double GLASS = 1.4;
         public const double WOOD = 4;
-        public const double CEMENT = 1.8;
-        public const double IRON = 14;
+        public const double FLESH = 1.3;
+        public const double PLASTIC = 1.5;
+        public const double RUBBER = 1.5;
+        public const double AIR = 1;
+
+        public static double getRefractiveIndex(int material)
+        {
+            switch (material)
+            {
+                case 0:
+                    return STONE;
+                case 1:
+                    return METAL;
+                case 2:
+                    return GLASS;
+                case 3:
+                    return WOOD;
+                case 4:
+                    return FLESH;
+                case 5:
+                    return PLASTIC;
+                case 6:
+                    return RUBBER;
+                case 7:
+                    return AIR;
+                default:
+                    return AIR;
+            }
+        }
         
     }
     /// <summary>
@@ -178,7 +207,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
             return countVariable;
         }//initialiseVariables
-
         /// <summary>
         /// To find transmitter and receiver in the world.
         /// </summary>
@@ -206,7 +234,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     SceneObjectGroup sog = (SceneObjectGroup)m_prims[i];
                     sog.ForEachPart(delegate(SceneObjectPart part)
                     {
-                        if (Vector3.Distance(part.AbsolutePosition, transmitter.RootPart.AbsolutePosition) <= MAX_DISTANCE)
+                        if (Vector3.Distance(part.AbsolutePosition, transmitter.RootPart.AbsolutePosition) <= MAX_DISTANCE || part.Name.CompareTo("Ry") == 0)
                         {
                             worldObjects.Add(part);
                         }
@@ -363,7 +391,11 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             //If yes then return that point and true. If not then return point(0, 0, 0) and false;
 
             ReflectionPoint reflectionPoint = new ReflectionPoint(new Vector3(x, y, z), true);
-            if (checkPointIntersectPrim(reflectionPoint.reflectionPoint, part, 0.05f)) { return reflectionPoint; }
+            if (checkPointIntersectPrim(reflectionPoint.reflectionPoint, part, 0.05f)) 
+            {
+                reflectionPoint.surfaceMaterial = part.Material;
+                return reflectionPoint; 
+            }
             else { return new ReflectionPoint(); }
         }
         /// <summary>
@@ -464,7 +496,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     //Thread worker = new Thread(reflections.followRayReflections);
                     //worker.Start();
 
-                    path.followRayReflections();
+                    //path.followRayReflections();
                     //while (worker.IsAlive);
                 }
             }//for
@@ -475,7 +507,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 {
                     //m_log.DebugFormat ("[BARE BONES NON SHARED] Found a hitting ray {0}, reflections {1}!", reflection.direction, reflection.path.Count - 2);
 
-                    hits[path.intersectionPoints.Count - 2].Add(path);
+                    hits[path.getNoOfReflection()].Add(path);
                 }//if
 
             }//foreach
@@ -498,14 +530,98 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             }//for
         }
         /// <summary>
-        /// Get a list of paths from the transmitter to the receiver.
+        /// Stand for "DirectMap 0 reflection". Find 0 reflection(line-of-sight).
+        /// Also do a check if there is an object between line of sight. If yes, then 
+        /// return null, i.e. there is no line-of-sight between transmitter and the receiver.
         /// </summary>
-        /// <param name="maxNoOfPath">How many path from the transmitter to the receiver do you want?</param>
-        /// <param name="noOfReflection">Number of reflections for every return</param>
-        /// <returns></returns>
-        List<PathFromTxToRy> getListOfDirectMapReflection(int maxNoOfPath, int noOfReflection)
-        { 
-            return new List<PathFromTxToRy>();
+        /// <returns>Line-of-sight path from Tx or Ry</returns>
+        List<PathFromTxToRy> DM0Ref()
+        {
+            // My assumption is that if there is an object in between the line of sight, the signal will not 
+            // penetrate through it therefore, there will be no line of sight. 
+
+            //Test if the line of sight hit anything(object) before it hitting the receiver
+
+            Vector3 lineOfSightDirection = receiver.RootPart.AbsolutePosition - transmitter.RootPart.AbsolutePosition;
+            Ray lineOfSight = new Ray(transmitter.RootPart.AbsolutePosition, lineOfSightDirection);
+            float distanceFromTxToRy = 0;
+            //Make this big so that it can get smaller. If make it = 0, then it will not change.
+            float distanceFromTxToClosestPrim = 10000000; 
+
+            //For every object in the world, test if the line-of-sight intersects it. If yes, then check if
+            //the distance is less than the direct distance from Tx to Ry. If yes then there is no line of sight.
+            //as it has been blocked by other object. 
+
+            worldObjects.ForEach(delegate(SceneObjectPart part)
+            {
+                EntityIntersection intersection = part.TestIntersectionOBB(lineOfSight, part.ParentGroup.GroupRotation, true, false);
+                if (part.Name.CompareTo("Ry") == 0)
+                {
+                    distanceFromTxToRy = Vector3.Distance(transmitter.RootPart.AbsolutePosition, intersection.ipoint);
+                }
+                else if (intersection.HitTF && (part.Name.CompareTo("Tx") != 0))
+                {
+                    float distance = Vector3.Distance(intersection.ipoint, transmitter.RootPart.AbsolutePosition);
+                    if (distance < distanceFromTxToClosestPrim)
+                    {
+                        distanceFromTxToClosestPrim = distance;
+                    }//if
+                }//else
+            });//ForEach
+
+            //If there is a line of sight
+            if (distanceFromTxToRy < distanceFromTxToClosestPrim)
+            {
+                List<PathFromTxToRy> pathList = new List<PathFromTxToRy>();
+                Vector3 fakeDirection = new Vector3();
+                PathFromTxToRy pathFromTxToRy = new PathFromTxToRy(this, transmitter.RootPart.AbsolutePosition, fakeDirection);
+                pathFromTxToRy.addNextPoint(receiver.RootPart.AbsolutePosition, receiver.RootPart.Material);
+                pathList.Add(pathFromTxToRy);
+                return pathList;
+
+            }
+            else //There is no line of sight
+            {
+                return null;
+            }
+        }
+        List<PathFromTxToRy> DM1Ref()
+        {
+            List<PathFromTxToRy> pathList = new List<PathFromTxToRy>();
+            worldObjects.ForEach(delegate(SceneObjectPart part)
+            {
+                ReflectionPoint reflectedPoint = findReflectionPoint
+                    (transmitter.RootPart.AbsolutePosition, receiver.RootPart.AbsolutePosition, part);
+                if (reflectedPoint.found)
+                {
+                    PathFromTxToRy newPath = new PathFromTxToRy(this, transmitter.RootPart.AbsolutePosition, new Vector3());
+                    newPath.addNextPoint(reflectedPoint.reflectionPoint, reflectedPoint.surfaceMaterial);
+                    newPath.addNextPoint(receiver.RootPart.AbsolutePosition, receiver.RootPart.Material);
+                    pathList.Add(newPath);
+                }//if
+            });//forEachPart
+            return pathList;
+        }
+        /// <summary>
+        /// Apply Snells law to calculate the angle of refraction. 
+        /// </summary>
+        /// <param name="incidentAngle">Angle of incident in radian</param>
+        /// <param name="refIndex1">Refractive index of medium 1</param>
+        /// <param name="refIndex2">Refractive index of medium 2</param>
+        /// <returns>angle of refrection or reflection in radian</returns>
+        /// <author> Mona </author>
+        double getRefAngle(double incidentAngle, double refIndex1, double refIndex2)
+        {
+            //          sin(θ1)         v1           n2
+            //          -----      =   ----    =    ----
+            //          sin(θ2)         v2           n1
+
+            // where θ1 = incident angle, θ2 = refracted angle, v = velocity of light going 
+            //through a certain medium n = refrected index of a certain medium.
+
+            double refractedAngle = 0;
+            refractedAngle = Math.Asin((refIndex1 * incidentAngle) / refIndex2);
+            return refractedAngle;
         }
         /// <summary>
         /// Get the angle of incidence cosine when the incidence vector given and the plane normal.
@@ -539,16 +655,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// </summary>
         public void getRaysPath()
         {
-            worldObjects.ForEach(delegate(SceneObjectPart part)
-            {
-                ReflectionPoint reflectedPoint = findReflectionPoint
-                    (transmitter.RootPart.AbsolutePosition, receiver.RootPart.AbsolutePosition, part);
-                if (reflectedPoint.found)
-                {
-                    drawPlaneRay(transmitter.RootPart.AbsolutePosition, reflectedPoint.reflectionPoint);
-                    drawPlaneRay(reflectedPoint.reflectionPoint, receiver.RootPart.AbsolutePosition);
-                }//if
-            });//forEachPart
         }
         /// <summary>
         /// Draw a ray (which has a shape of rectangle but with thin y and z value) from 2 given points. 
@@ -690,6 +796,7 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         {
             public Vector3 reflectionPoint;
             public bool found;
+            public int surfaceMaterial;
 
             public ReflectionPoint()
             {
@@ -703,21 +810,24 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         }
         public class Ray2
         {
-            Vector3 startPoint;
-            Vector3 endPoint;
-            double maxPower;
-            double minPower;
+            public Vector3 startPoint;
+            public Vector3 endPoint;
+            public double maxPower;
+            public string powerUnit;
+            public double minPower;
 
             /// <summary>
             /// 
             /// </summary>
             /// <param name="_ray"> A ray from starting point and its direction</param>
             /// <param name="_maxPower">The maximum transmittion power of the stating point</param>
-            public Ray2(Vector3 _startPoint, Vector3 _endPoint, double startPower)
+            public Ray2(Vector3 _startPoint, Vector3 _endPoint, double startPower, string _powerUnit)
             {
                 startPoint = _startPoint;
                 endPoint = _endPoint;
                 maxPower = startPower;
+                powerUnit = _powerUnit;
+                minPower = maxPower - RadioPower.CalculatePathloss(Vector3.Distance(startPoint, endPoint), maxPower.ToString(), powerUnit);
             }//constructor
 
             /// <summary>
@@ -730,357 +840,90 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             {
                 return 0;
             }//getStrengthAt
+
+            /// <summary>
+            /// Calculate and return the left-over power after the reflection at the 
+            /// end point of this ray.
+            /// </summary>
+            /// <param name="primMaterial">The material which reflecting this ray</param>
+            /// <returns>Left over power in dBW</returns>
+            public double getStrengthAfterReflection(Vector3 nextPoint, int primMaterial)
+            {
+                //To find the angle between 2 vectors
+                //
+                //    A.B
+                //  ------  = cos(θ)
+                //  |A||B|
+
+                Vector3 ray1 = startPoint - endPoint;
+                Vector3 ray2 = nextPoint - endPoint;
+                double airRefractiveIndex = RefrectiveIndex.AIR;
+                double surfaceRefractiveIndex = RefrectiveIndex.getRefractiveIndex(primMaterial);
+
+                //Calculate angle or incident, and reflection/refraction angle. 
+                RayTracer rayTracerModel = new RayTracer();
+                double incidentAngle = Math.Acos(Vector3.Dot(ray1, ray2) / (ray1.Length() * ray2.Length()));
+                double reflectionAngle = rayTracerModel.getRefAngle(incidentAngle, airRefractiveIndex, surfaceRefractiveIndex);
+
+                //Calculate and return reflection/refraction loss
+
+                return (minPower - RadioPower.ComputeRefloss(airRefractiveIndex, surfaceRefractiveIndex, incidentAngle, reflectionAngle));
+            }
         }
+        /// <summary>
+        /// A path from Tx to Rx. A path can consist of 1 or more than 1 ray. Ray = a line from one point to another.
+        /// </summary>
         public class PathFromTxToRy
         {
+            //rays = a list of rays from Tx to Rx. PathFromTxToRy may have more than one ray due to reflection. 
+
+            public List<Ray2> rays; 
             public Vector3 transmitterPos;                      //Transmitter position
             public Vector3 direction;                           //Direction vector of the first ray (For BlindSearch)
-            public List<EntityIntersection> intersectionPoints; //List of intersection points from Tx to Ry
             public bool reachesReceiver;                        //Has this path reached the reveicer?
             RayTracer rayTracerModel;                           //Ray tracer model. (The method used to create this object)
-            public int noOfReflection = 0;                      //Total number of reflection of this path. 
-
-            //Variable and coefficient for calculating power
-
-            double reflecCoeff = 0;
-            double refloss11 = 0;
-            double transcoeff = 0;
-            double refractionAngle = 0;
-            float distance = 0;
-            double pathLoss = 0;
-            double recievedPower = 0;
-            double angle = 0;
+            Ray2 lastRay = null;                                //The current end/last ray of this path 
 
             public PathFromTxToRy(RayTracer parent, Vector3 _start, Vector3 _direction)
             {
                 rayTracerModel = parent;
                 direction = _direction;
                 transmitterPos = _start;
-            }
-
-            /// <summary>
-            /// This function add a touch script to each rezzed prim
-            /// </summary>
-            /// <param name="sog"></param>
-            /// <param name="part"></param>
-            /// <author>Mona</author>
-            public void addTouchScript(SceneObjectGroup sog, SceneObjectPart part)
-            {
-                AssetBase asset = new AssetBase();
-                asset.Name = "Default touch script";
-                asset.Description = "Default touch script";
-                asset.Type = 10; // 10 is the asset type for scripts.
-                asset.FullID = UUID.Random();
-                string data = angle + "_" + pathLoss;
-                string partScript = "default\n{\n touch_start(integer i) \n {\n        llSay(0, \"Hiii\");\n    }\n}";
-                //string partScript = "string data="+data+";\n" +"default\n{\n touch_start(integer i) \n {\n        llSay(0,data);\n    }\n}";
-                asset.Data = Encoding.ASCII.GetBytes(partScript);
-                rayTracerModel.m_scene.AssetService.Store(asset);
-
-                TaskInventoryItem taskItem = new TaskInventoryItem();
-
-                taskItem.ResetIDs(part.UUID);
-                taskItem.ParentID = part.UUID;
-                taskItem.CreationDate = (uint)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
-                taskItem.Name = "Default touch script";
-                taskItem.Description = "Default touch script";
-                taskItem.Type = 10;
-                taskItem.InvType = 10;
-                taskItem.OwnerID = UUID.Zero;
-                taskItem.CreatorID = UUID.Zero;
-                taskItem.BasePermissions = 2147483647; //0; // Not sure, let's try zeros.
-                taskItem.CurrentPermissions = 2147483647; //0;
-                taskItem.EveryonePermissions = 0;
-                taskItem.GroupPermissions = 0;
-                taskItem.NextPermissions = 532480; //0;
-                taskItem.GroupID = UUID.Zero;
-                taskItem.Flags = 0;
-                taskItem.PermsGranter = UUID.Zero;
-                taskItem.PermsMask = 0;
-                taskItem.AssetID = asset.FullID;
-                sog.ScheduleGroupForTerseUpdate();
-                part.Inventory.AddInventoryItem(taskItem, false);
-                rayTracerModel.m_scene.AddNewSceneObject(sog, false);
-                part.Inventory.CreateScriptInstance(taskItem, 0, false, rayTracerModel.m_scene.DefaultScriptEngine, 0);
-
-            }
-            /// <summary>
-            /// (Five functions) to compute the reflection and refraction coeff,the reflected power and the path loss
-            /// The calculations carried Out depends on the PrimMaterial texture-As opensim don't gove any description of the texture attached to 
-            /// a prim the prim PrimMaterial is determined in the prim name
-            /// </summary>
-            /// <author> Mona </author>
-            ///////////////////////////////Reflected Power////////////////////////////////////
-            double computeRefloss(double reflectionCoefficient)
-            {
-                double reflectionLoss = 0;
-                reflectionLoss = -20 * Math.Log10(reflectionCoefficient);
-                return reflectionLoss;
-            }
-            /// <summary>
-            /// Compute reflection (did you mean refrection?) coefficient. 
-            /// </summary>
-            /// <param name="refIndex1">Refr</param>
-            /// <param name="refIndex2"></param>
-            /// <param name="incidentAngle"></param>
-            /// <param name="transmitAngle"></param>
-            /// <author> Mona </author>
-            /// <returns></returns>
-            double computeRefCoef(double refIndex1, double refIndex2, double incidentAngle, double transmitAngle)
-            {
-                double parallelRefCoef = 0;
-                double perpendicularRefCoef = 0;
-                parallelRefCoef = ((refIndex2 * Math.Cos(incidentAngle) - refIndex1 * Math.Cos(transmitAngle)) / (refIndex2 * Math.Cos(incidentAngle) + refIndex1 * Math.Cos(transmitAngle)));
-                perpendicularRefCoef = ((refIndex1 * Math.Cos(incidentAngle) - refIndex2 * Math.Cos(transmitAngle)) / (refIndex1 * Math.Cos(incidentAngle) + refIndex2 * Math.Cos(transmitAngle)));
-                double refCoef = Math.Sqrt(parallelRefCoef * parallelRefCoef + perpendicularRefCoef * perpendicularRefCoef);
-                return refCoef;
-            }
-            /// <summary>
-            /// Compute transmittion coefficient
-            /// </summary>
-            /// <param name="refIndex1"></param>
-            /// <param name="refIndex2"></param>
-            /// <param name="incidentAngle"></param>
-            /// <param name="transmitAngle"></param>
-            /// <returns>transmittion coefficient</returns>
-            /// <author> Mona </author>
-            double computeTransCoef(double refIndex1, double refIndex2, double incidentAngle, double transmitAngle)
-            {
-                double parallelRefCoef = 0;
-                double perpendicularRefCoef = 0;
-                parallelRefCoef = 2 * (refIndex1 * Math.Cos(incidentAngle) / (refIndex2 * Math.Cos(incidentAngle) + refIndex1 * Math.Cos(transmitAngle)));
-                perpendicularRefCoef = 2 * (refIndex1 * Math.Cos(incidentAngle) / (refIndex1 * Math.Cos(incidentAngle) + refIndex2 * Math.Cos(transmitAngle)));
-                double refCoef = Math.Sqrt(parallelRefCoef * parallelRefCoef + perpendicularRefCoef * perpendicularRefCoef);
-                return refCoef;
-            }
-            ////////////////////////////////////////////Degrees to Radians converter and Radian to degree converter/////////////////////////////////////////////////////////////////
-            private double DegreeToRadian(double angle)
-            {
-                return Math.PI * angle / 180.0;
-            }
-            private double RadianToDegree(double angle)
-            {
-                return angle * (180.0 / Math.PI);
-            }
-            /// <summary>
-            /// ////////////////////////////////////////////CalculatePathLoss////////////////////////////////////////////////////////////
-            /// </summary>
-            /// The path loss is calculated in dB where d is in meters and f in megahertz
-            double calculatePathloss(double distance)
-            {
-                double path_loss = 0;
-
-                // Any input frequency is converted to Mhz using the the converter ontology!!
-                //the input frequency is in the following format ex 1000_hz
-                //The ontolgy converts the frequency value to mhz
-
-                Conversion.Initialize();
-                string from = Conversion.Get_Unit_Class1(rayTracerModel.runningFreqRT, rayTracerModel.runningFreqRTUnit);
-                string to = Conversion.Get_Unit_Class1("1", "mhz");
-                double result = Double.Parse(Conversion.Conversion_Between_units(from, to, rayTracerModel.runningFreqRT).Split('^')[0]);
-                path_loss = 20 * Math.Log10(distance) + 20 * Math.Log10(result) - 27.55;
-                return path_loss;
-            }
-            /// <summary>
-            /// /////////////////////////////////////////////////////////////////////////////////////////////////////////
-            double CalculatePathlossRays(double distance, double refcoeff, double pos)
-            {
-                double powercurr = Math.Pow(10, (rayTracerModel.runningPowerRT + 30) / 10);
-                double path_loss = 0;
-                Conversion.Initialize();
-                string from = Conversion.Get_Unit_Class1(rayTracerModel.runningFreqRT, rayTracerModel.runningFreqRTUnit);
-                string to = Conversion.Get_Unit_Class1("1", "hz");
-                double result = Double.Parse(Conversion.Conversion_Between_units(from, to, rayTracerModel.runningFreqRT).Split('^')[0]);
-                double wavelength = 3 * Math.Pow(10, 8) / result;
-                path_loss = 10 * Math.Log10((powercurr * Math.Pow(refcoeff, 2) * Math.Pow(wavelength, 2)) / (16 * Math.Pow(Math.PI, 2) * (distance) * (distance)));
-                return path_loss;
-            }
-
-            ////////////////////////////////CalculateRecievedPower//////////////////////////
-            double Calculate_Recieved_Power()
-            {
-
-                double path_loss2 = Math.Pow(10, (pathLoss / 10));
-                double power2 = Math.Pow(10, rayTracerModel.runningPowerRT / 10);
-                recievedPower = 10 * Math.Log10(-path_loss2 + power2);
-                return recievedPower;
-
-            }
-            /// <summary>
-            /// Apply Snells law to calculate the angle of refraction. 
-            /// </summary>
-            /// <param name="incidentAngle">Angle of incident in radian</param>
-            /// <param name="refIndex1">Refractive index of medium 1</param>
-            /// <param name="refIndex2">Refractive index of medium 2</param>
-            /// <returns>angle of refrection in radian</returns>
-            /// <author> Mona </author>
-            double getRefractedAngle(double incidentAngle, double refIndex1, double refIndex2)
-            {
-                //          sin(θ1)         v1           n2
-                //          -----      =   ----    =    ----
-                //          sin(θ2)         v2           n1
-
-                // where θ1 = incident angle, θ2 = refracted angle, v = velocity of light going 
-                //through a certain medium n = refrected index of a certain medium.
-
-                double refractedAngle = 0;
-                refractedAngle = Math.Asin((refIndex1 * incidentAngle) / refIndex2);
-                return refractedAngle;
-            }
-            /// </summary>
-            float TotalDistance = 0;
-
-            //Added By Mona
-            //Perform the calculations
-            void doCalculations(double angle1, EntityIntersection fromPoint, EntityIntersection toPoint, SceneObjectPart part)
-            {
-                reflecCoeff = computeRefCoef(PrimMaterial.AIR, PrimMaterial.WOOD, angle1, getRefractedAngle(angle1, PrimMaterial.AIR, PrimMaterial.WOOD));
-                refloss11 = computeRefloss(reflecCoeff);
-                transcoeff = computeTransCoef(PrimMaterial.AIR, PrimMaterial.WOOD, angle1, getRefractedAngle(angle1, PrimMaterial.AIR, PrimMaterial.WOOD));
-                refractionAngle = getRefractedAngle(angle1, PrimMaterial.AIR, PrimMaterial.WOOD);
-                m_log.DebugFormat("[refractionAngle]" + refractionAngle.ToString());
-                //Check if the it is the first ray from  TX  
-                // If yes do the calculations
-                distance = Vector3.Distance(part.AbsolutePosition, fromPoint.obj.AbsolutePosition);
-                m_log.DebugFormat("[distance]" + distance.ToString());
-                if (fromPoint.obj.Name == "Tx")
-                {
-                    pathLoss = CalculatePathlossRays(distance, reflecCoeff, 0);
-
-                    m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
-                }
-                else
-                {
-
-                    pathLoss = CalculatePathlossRays(distance + TotalDistance, reflecCoeff, 0);
-                    m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
-
-                }
-                m_log.DebugFormat("[RecivedPower]" + Calculate_Recieved_Power().ToString());
-                //CalculatePathlossRay
-
-            }
-
-            //
-            // Finds the intersection with the first prim the ray hits
-            EntityIntersection findNextHit(Ray ray, SceneObjectPart last)
-            {
-                EntityIntersection closest = new EntityIntersection();
-                closest.HitTF = false;
-                ray.Direction.Normalize();
-                //advance a bit to prevent rounding errors
-                ray.Origin = ray.Origin + ray.Direction * 0.1f;
-
-                int i;
-                for (i = 0; i < rayTracerModel.m_prims.Length; i++)
-                {
-                    //Check if the prim can reflect a ray 
-                    //For any prim to reflect a ray, please include a "_reflectable" tag in it's name e.g. primName_reflectable. 
-                    //Do this in the world object (in its property). 
-                    if (rayTracerModel.m_prims[i] is SceneObjectGroup && rayTracerModel.checkToken("reflectable", rayTracerModel.m_prims[i]))
-                    {
-                        SceneObjectGroup t = (SceneObjectGroup)rayTracerModel.m_prims[i];
-
-                        // look at each part that makes the group
-                        t.ForEachPart(delegate(SceneObjectPart part)
-                        {
-                            // it can not hit the same prim after reflection
-                            if (!part.Equals(last))
-                            {
-
-                                EntityIntersection intersect = new EntityIntersection();
-                                intersect.HitTF = false;
-
-                                // decide to use a bounding sphere or bounding box
-                                if (part.GetPrimType() == OpenSim.Region.Framework.Scenes.PrimType.SPHERE)
-                                    intersect = part.TestIntersection(ray, part.ParentGroup.GroupRotation);
-
-                                else
-                                {
-                                    intersect = part.TestIntersectionOBB(ray, part.ParentGroup.GroupRotation, true, false);
-                                }
-
-                                // if (intersect.HitTF == true && (closest.HitTF == false || closest.distance > intersect.distance))
-                                //If the ray intersect something and the angle of incidence is > 0 and its distance is better than all other intersection then...
-                                if (intersect.HitTF == true && getAngleOfIncidenceCos(-ray.Direction, intersect.normal) >= 0 && (closest.HitTF == false || closest.distance > intersect.distance))
-                                {
-                                    // m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}>>>>>{1}>>>>{2}!", intersect.ipoint.ToString(), part.AbsolutePosition.Z.ToString(), part.Scale.Z.ToString());
-                                    // m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}", intersect.obj.Name);
-                                    if ((intersect.ipoint.Z <= (part.AbsolutePosition.Z + (part.Scale.Z / 2.0))) && (intersect.ipoint.Z >= (part.AbsolutePosition.Z - (part.Scale.Z / 2.0))))
-                                    //(intersect.ipoint.X <= (part.AbsolutePosition.X + (part.Scale.X / 2.0)) + 0.1) && (intersect.ipoint.X >= (part.AbsolutePosition.X - (part.Scale.X / 2.0) + 0.1)) ||
-                                    //(intersect.ipoint.Y <= (part.AbsolutePosition.Y + (part.Scale.Y / 2.0)) + 0.1) && (intersect.ipoint.Y >= (part.AbsolutePosition.Y - (part.Scale.Y / 2.0) + 0.1)))
-                                    {
-                                        //m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}>>>>>{1}>>>>{2}!", intersect.ipoint.ToString(), part.AbsolutePosition.Z.ToString(), part.Scale.Z.ToString());
-                                        closest = intersect;
-                                        closest.obj = part;
-                                    }
-                                    // if (closest.obj.Name.CompareTo("SlideDoor") == 0 )
-                                }//if
-                            }//if
-                        });
-
-                    }//if
-                }
-                return closest;
-            }//findNextHit
-
-            /// <summary>
-            /// Track this ray upto the MAX_REFLECTIONS, and keep the path (coordinates) of where this ray intersect.
-            /// </summary>
-            public void followRayReflections()
-            {
-
-                //path: An array of path. To keep track of where intecsection occurs for each reflection. 
-                //distance: Total distance travel from transimitter to the receiver.
-                //currentPos: The direction of where this ray is "heading". Note: The currentDirection will change then there is a reflection
-                //hope: total number of reflection so far. 
-
-                intersectionPoints = new List<EntityIntersection>();
-                EntityIntersection currentPos = new EntityIntersection(transmitterPos, new Vector3(0, 0, 0), true);
-                currentPos.obj = rayTracerModel.transmitter.RootPart;
-                Vector3 currentDirection = direction;
-                intersectionPoints.Add(currentPos);
-                double distance = 0;
                 reachesReceiver = false;
-                int hops = 0;
+            }
+            /// <summary>
+            /// Add a new reflection point or receiver point(destination) to this path
+            /// </summary>
+            /// <param name="nextPoint">the reflection point or receiver</param>
+            /// <param name="primMaterial">the material of a prim which reflection point occur. If it is the 
+            /// receiver, then just get the receiver material</param>
+            public void addNextPoint(Vector3 nextPoint, int primMaterial)
+            {
+                //If there is a last ray then uses its endPoint as a start point for this new ray
 
-                while (distance < rayTracerModel.MAX_DISTANCE && hops < rayTracerModel.MAX_REFLECTIONS)
+                if (lastRay != null)
                 {
-                    hops++;
-
-                    //A ray has origin and direction
-                    Ray ray = new Ray(currentPos.ipoint, currentDirection);
-
-                    //Find an exact point where this ray will hitf a prim. Closest var stores attributes of where this intersection occurs. 
-                    //EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
-                    //It doesn't make sense to use m_parent.transmitter.RootPart as the 
-
-                    EntityIntersection closest = findNextHit(ray, currentPos.obj);
-
-                    //If the ray hit something (a prim)
-                    if (closest.HitTF)
-                    {
-                        //If it hit something, then add the intersection as the Ray's path. 
-                        intersectionPoints.Add(closest);
-                        distance += (closest.ipoint - currentPos.ipoint).Length();
-
-                        //if the ray hits the receiver
-                        if (closest.obj.ParentGroup.Equals(rayTracerModel.receiver))
-                        {
-                            reachesReceiver = true;
-                            break;
-                        }//if
-
-                        //Add this intersection to path
-                        //Use a specific model to calculate a relfection
-                        currentDirection = rayTracerModel.getReflectedRay(currentDirection, closest.normal);
-                        currentPos = closest;
-
-                    }//if it didn't hit something, then there is no point keep tracking it...
-                    else break;
+                    double newStartPower = lastRay.getStrengthAfterReflection(nextPoint, primMaterial);
+                    Ray2 ray = new Ray2(lastRay.endPoint, nextPoint, newStartPower, lastRay.powerUnit);
+                    rays.Add(ray);
+                    lastRay = ray;
+                }
+                else //This is the first ray starting from the transmitter to the given 'nextPoint'
+                {
+                    Ray2 firstRay = new Ray2(transmitterPos, nextPoint, rayTracerModel.runningPowerRT, rayTracerModel.runningPowerRTUnit);
+                    rays.Add(firstRay);
+                    lastRay = firstRay;
                 }
             }
 
+            /// <summary>
+            /// Get the number of reflection. Number of reflection = total number of rays -1.
+            /// </summary>
+            /// <returns></returns>
+            public int getNoOfReflection()
+            {
+                return rays.Count() - 1;
+            }
         }//PathFromTxToRy object.
     }//RayTracer
 

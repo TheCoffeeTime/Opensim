@@ -1,0 +1,264 @@
+            public void addTouchScript(SceneObjectGroup sog, SceneObjectPart part)
+            {
+                AssetBase asset = new AssetBase();
+                asset.Name = "Default touch script";
+                asset.Description = "Default touch script";
+                asset.Type = 10; // 10 is the asset type for scripts.
+                asset.FullID = UUID.Random();
+                string data = angle + "_" + pathLoss;
+                string partScript = "default\n{\n touch_start(integer i) \n {\n        llSay(0, \"Hiii\");\n    }\n}";
+                //string partScript = "string data="+data+";\n" +"default\n{\n touch_start(integer i) \n {\n        llSay(0,data);\n    }\n}";
+                asset.Data = Encoding.ASCII.GetBytes(partScript);
+                rayTracerModel.m_scene.AssetService.Store(asset);
+
+                TaskInventoryItem taskItem = new TaskInventoryItem();
+
+                taskItem.ResetIDs(part.UUID);
+                taskItem.ParentID = part.UUID;
+                taskItem.CreationDate = (uint)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+                taskItem.Name = "Default touch script";
+                taskItem.Description = "Default touch script";
+                taskItem.Type = 10;
+                taskItem.InvType = 10;
+                taskItem.OwnerID = UUID.Zero;
+                taskItem.CreatorID = UUID.Zero;
+                taskItem.BasePermissions = 2147483647; //0; // Not sure, let's try zeros.
+                taskItem.CurrentPermissions = 2147483647; //0;
+                taskItem.EveryonePermissions = 0;
+                taskItem.GroupPermissions = 0;
+                taskItem.NextPermissions = 532480; //0;
+                taskItem.GroupID = UUID.Zero;
+                taskItem.Flags = 0;
+                taskItem.PermsGranter = UUID.Zero;
+                taskItem.PermsMask = 0;
+                taskItem.AssetID = asset.FullID;
+                sog.ScheduleGroupForTerseUpdate();
+                part.Inventory.AddInventoryItem(taskItem, false);
+                rayTracerModel.m_scene.AddNewSceneObject(sog, false);
+                part.Inventory.CreateScriptInstance(taskItem, 0, false, rayTracerModel.m_scene.DefaultScriptEngine, 0);
+
+            }
+            /// <summary>
+            /// (Five functions) to compute the reflection and refraction coeff,the reflected power and the path loss
+            /// The calculations carried Out depends on the PrimMaterial texture-As opensim don't gove any description of the texture attached to 
+            /// a prim the prim PrimMaterial is determined in the prim name
+            /// </summary>
+            /// <author> Mona </author>
+            /// <summary>
+            /// Compute transmittion coefficient
+            /// </summary>
+            /// <param name="refIndex1"></param>
+            /// <param name="refIndex2"></param>
+            /// <param name="incidentAngle"></param>
+            /// <param name="transmitAngle"></param>
+            /// <returns>transmittion coefficient</returns>
+            /// <author> Mona </author>
+            double computeTransCoef(double refIndex1, double refIndex2, double incidentAngle, double transmitAngle)
+            {
+                double parallelRefCoef = 0;
+                double perpendicularRefCoef = 0;
+                parallelRefCoef = 2 * (refIndex1 * Math.Cos(incidentAngle) / (refIndex2 * Math.Cos(incidentAngle) + refIndex1 * Math.Cos(transmitAngle)));
+                perpendicularRefCoef = 2 * (refIndex1 * Math.Cos(incidentAngle) / (refIndex1 * Math.Cos(incidentAngle) + refIndex2 * Math.Cos(transmitAngle)));
+                double refCoef = Math.Sqrt(parallelRefCoef * parallelRefCoef + perpendicularRefCoef * perpendicularRefCoef);
+                return refCoef;
+            }
+            ////////////////////////////////////////////Degrees to Radians converter and Radian to degree converter/////////////////////////////////////////////////////////////////
+            private double DegreeToRadian(double angle)
+            {
+                return Math.PI * angle / 180.0;
+            }
+            private double RadianToDegree(double angle)
+            {
+                return angle * (180.0 / Math.PI);
+            }
+            /// <summary>
+            /// /////////////////////////////////////////////////////////////////////////////////////////////////////////
+            double CalculatePathlossRays(double distance, double refcoeff)
+            {
+                double powercurr = Math.Pow(10, (rayTracerModel.runningPowerRT + 30) / 10);
+                double path_loss = 0;
+                Conversion.Initialize();
+                string from = Conversion.Get_Unit_Class1(rayTracerModel.runningFreqRT, rayTracerModel.runningFreqRTUnit);
+                string to = Conversion.Get_Unit_Class1("1", "hz");
+                double result = Double.Parse(Conversion.Conversion_Between_units(from, to, rayTracerModel.runningFreqRT).Split('^')[0]);
+                double wavelength = 3 * Math.Pow(10, 8) / result;
+                path_loss = 10 * Math.Log10((powercurr * Math.Pow(refcoeff, 2) * Math.Pow(wavelength, 2)) / (16 * Math.Pow(Math.PI, 2) * (distance) * (distance)));
+                return path_loss;
+            }
+            ////////////////////////////////CalculateRecievedPower//////////////////////////
+            double Calculate_Recieved_Power()
+            {
+
+                double path_loss2 = Math.Pow(10, (pathLoss / 10));
+                double power2 = Math.Pow(10, rayTracerModel.runningPowerRT / 10);
+                recievedPower = 10 * Math.Log10(-path_loss2 + power2);
+                return recievedPower;
+
+            }
+            /// <summary>
+            /// Apply Snells law to calculate the angle of refraction. 
+            /// </summary>
+            /// <param name="incidentAngle">Angle of incident in radian</param>
+            /// <param name="refIndex1">Refractive index of medium 1</param>
+            /// <param name="refIndex2">Refractive index of medium 2</param>
+            /// <returns>angle of refrection in radian</returns>
+            /// <author> Mona </author>
+            double getRefractedAngle(double incidentAngle, double refIndex1, double refIndex2)
+            {
+                //          sin(θ1)         v1           n2
+                //          -----      =   ----    =    ----
+                //          sin(θ2)         v2           n1
+
+                // where θ1 = incident angle, θ2 = refracted angle, v = velocity of light going 
+                //through a certain medium n = refrected index of a certain medium.
+
+                double refractedAngle = 0;
+                refractedAngle = Math.Asin((refIndex1 * incidentAngle) / refIndex2);
+                return refractedAngle;
+            }
+            /// </summary>
+            float TotalDistance = 0;
+            //Added By Mona
+            //Perform the calculations
+            void doCalculations(double angle1, EntityIntersection fromPoint, EntityIntersection toPoint, SceneObjectPart part)
+            {
+                double refractedAngle = getRefractedAngle(angle1, PrimMaterial.AIR, PrimMaterial.WOOD);
+                refloss11 = RadioPower.ComputeRefloss(PrimMaterial.AIR, PrimMaterial.WOOD, angle1, refractedAngle);
+                transcoeff = computeTransCoef(PrimMaterial.AIR, PrimMaterial.WOOD, angle1, refractedAngle);
+
+                //Check if the it is the first ray from  TX  
+                // If yes do the calculations
+                distance = Vector3.Distance(part.AbsolutePosition, fromPoint.obj.AbsolutePosition);
+                m_log.DebugFormat("[distance]" + distance.ToString());
+                if (fromPoint.obj.Name == "Tx")
+                {
+                    pathLoss = CalculatePathlossRays(distance, reflecCoeff);
+
+                    m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
+                }
+                else
+                {
+
+                    pathLoss = CalculatePathlossRays(distance + TotalDistance, reflecCoeff);
+                    m_log.DebugFormat("[pathLoss]" + pathLoss.ToString());
+
+                }
+                m_log.DebugFormat("[RecivedPower]" + Calculate_Recieved_Power().ToString());
+                //CalculatePathlossRay
+            }
+            EntityIntersection findNextHit(Ray ray, SceneObjectPart last)
+            {
+                EntityIntersection closest = new EntityIntersection();
+                closest.HitTF = false;
+                ray.Direction.Normalize();
+                //advance a bit to prevent rounding errors
+                ray.Origin = ray.Origin + ray.Direction * 0.1f;
+
+                int i;
+                for (i = 0; i < rayTracerModel.m_prims.Length; i++)
+                {
+                    //Check if the prim can reflect a ray 
+                    //For any prim to reflect a ray, please include a "_reflectable" tag in it's name e.g. primName_reflectable. 
+                    //Do this in the world object (in its property). 
+                    if (rayTracerModel.m_prims[i] is SceneObjectGroup && rayTracerModel.checkToken("reflectable", rayTracerModel.m_prims[i]))
+                    {
+                        SceneObjectGroup t = (SceneObjectGroup)rayTracerModel.m_prims[i];
+
+                        // look at each part that makes the group
+                        t.ForEachPart(delegate(SceneObjectPart part)
+                        {
+                            // it can not hit the same prim after reflection
+                            if (!part.Equals(last))
+                            {
+
+                                EntityIntersection intersect = new EntityIntersection();
+                                intersect.HitTF = false;
+
+                                // decide to use a bounding sphere or bounding box
+                                if (part.GetPrimType() == OpenSim.Region.Framework.Scenes.PrimType.SPHERE)
+                                    intersect = part.TestIntersection(ray, part.ParentGroup.GroupRotation);
+
+                                else
+                                {
+                                    intersect = part.TestIntersectionOBB(ray, part.ParentGroup.GroupRotation, true, false);
+                                }
+
+                                // if (intersect.HitTF == true && (closest.HitTF == false || closest.distance > intersect.distance))
+                                //If the ray intersect something and the angle of incidence is > 0 and its distance is better than all other intersection then...
+                                if (intersect.HitTF == true && getAngleOfIncidenceCos(-ray.Direction, intersect.normal) >= 0 && (closest.HitTF == false || closest.distance > intersect.distance))
+                                {
+                                    // m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}>>>>>{1}>>>>{2}!", intersect.ipoint.ToString(), part.AbsolutePosition.Z.ToString(), part.Scale.Z.ToString());
+                                    // m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}", intersect.obj.Name);
+                                    if ((intersect.ipoint.Z <= (part.AbsolutePosition.Z + (part.Scale.Z / 2.0))) && (intersect.ipoint.Z >= (part.AbsolutePosition.Z - (part.Scale.Z / 2.0))))
+                                    //(intersect.ipoint.X <= (part.AbsolutePosition.X + (part.Scale.X / 2.0)) + 0.1) && (intersect.ipoint.X >= (part.AbsolutePosition.X - (part.Scale.X / 2.0) + 0.1)) ||
+                                    //(intersect.ipoint.Y <= (part.AbsolutePosition.Y + (part.Scale.Y / 2.0)) + 0.1) && (intersect.ipoint.Y >= (part.AbsolutePosition.Y - (part.Scale.Y / 2.0) + 0.1)))
+                                    {
+                                        //m_log.DebugFormat("[BARE BONES NON SHARED] We HIT {0}>>>>>{1}>>>>{2}!", intersect.ipoint.ToString(), part.AbsolutePosition.Z.ToString(), part.Scale.Z.ToString());
+                                        closest = intersect;
+                                        closest.obj = part;
+                                    }
+                                    // if (closest.obj.Name.CompareTo("SlideDoor") == 0 )
+                                }//if
+                            }//if
+                        });
+
+                    }//if
+                }
+                return closest;
+            }//findNextHit
+            /// <summary>
+            /// Track this ray upto the MAX_REFLECTIONS, and keep the path (coordinates) of where this ray intersect.
+            /// </summary>
+            public void followRayReflections()
+            {
+
+                //path: An array of path. To keep track of where intecsection occurs for each reflection. 
+                //distance: Total distance travel from transimitter to the receiver.
+                //currentPos: The direction of where this ray is "heading". Note: The currentDirection will change then there is a reflection
+                //hope: total number of reflection so far. 
+
+                intersectionPoints = new List<EntityIntersection>();
+                EntityIntersection currentPos = new EntityIntersection(transmitterPos, new Vector3(0, 0, 0), true);
+                currentPos.obj = rayTracerModel.transmitter.RootPart;
+                Vector3 currentDirection = direction;
+                intersectionPoints.Add(currentPos);
+                double distance = 0;
+                reachesReceiver = false;
+                int hops = 0;
+
+                while (distance < rayTracerModel.MAX_DISTANCE && hops < rayTracerModel.MAX_REFLECTIONS)
+                {
+                    hops++;
+
+                    //A ray has origin and direction
+                    Ray ray = new Ray(currentPos.ipoint, currentDirection);
+
+                    //Find an exact point where this ray will hitf a prim. Closest var stores attributes of where this intersection occurs. 
+                    //EntityIntersection closest = findNextHit(ray, m_parent.transmitter.RootPart);
+                    //It doesn't make sense to use m_parent.transmitter.RootPart as the 
+
+                    EntityIntersection closest = findNextHit(ray, currentPos.obj);
+
+                    //If the ray hit something (a prim)
+                    if (closest.HitTF)
+                    {
+                        //If it hit something, then add the intersection as the Ray's path. 
+                        intersectionPoints.Add(closest);
+                        distance += (closest.ipoint - currentPos.ipoint).Length();
+
+                        //if the ray hits the receiver
+                        if (closest.obj.ParentGroup.Equals(rayTracerModel.receiver))
+                        {
+                            reachesReceiver = true;
+                            break;
+                        }//if
+
+                        //Add this intersection to path
+                        //Use a specific model to calculate a relfection
+                        currentDirection = rayTracerModel.getReflectedRay(currentDirection, closest.normal);
+                        currentPos = closest;
+
+                    }//if it didn't hit something, then there is no point keep tracking it...
+                    else break;
+                }
+            }
