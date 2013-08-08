@@ -1,0 +1,26 @@
+﻿float glowIntensity = 0.1;
+float alphaIntensity = 0.15;
+
+default
+{
+    state_entry()
+    {
+        //Set Transparency, glow and phantom.
+        llSetPrimitiveParams( [ PRIM_GLOW, ALL_SIDES, glowIntensity,
+																PRIM_PHANTOM, TRUE]); 
+				llSetAlpha(alphaIntensity, ALL_SIDES);
+    }
+    
+    touch_start(integer num_detected)
+    {
+        //When touched, get the position of where it is touched and calculate the signal strength
+        vector touchPos = llDetectedTouchPos(0);
+        string position = (string)touchPos.x + "_" + (string)touchPos.y + "_" + (string)touchPos.z;
+        string name = llGetObjectName();
+        modSendCommand("getStrengthAt", name, position);
+    }
+        link_message(integer sender_num, integer num, string message, key id)
+        {
+            llSay(0, message);
+        }
+}

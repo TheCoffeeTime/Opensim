@@ -1,0 +1,49 @@
+integer StartExp=0;
+integer flag=0;
+default
+{
+    state_entry()
+    {
+       // llSay(0, "Script running");
+       llSetText("VLF",<1,1,1>,1.0);
+       llListen(StartExp,"",NULL_KEY,"");
+       llListen(139,"",llDetectedKey(0),"");
+    } // end state_entry
+    
+    listen(integer chan, string name, key id, string msg) 
+    {
+        if(chan==StartExp)
+        {
+            flag=1;
+        } // end if
+        
+        if(chan==139 && flag==1)
+        {
+            list tokens = llParseString2List(msg, [" ", "_"], []);
+            
+            integer numValue = llList2Integer(tokens, 0);
+            string unitGiven = llList2String(tokens, 1);
+            
+            if(unitGiven == "hz")
+            {
+                if(numValue >= 3000 && numValue < 10000)
+                {
+                    llSay(0,"VLF");
+                    // Object will rez and die after 5 seconds.
+                    llRezObject("VLF",llGetPos()+<0.5,0,.5>,ZERO_VECTOR,ZERO_ROTATION,10);
+                } // end if
+            } // end if
+            else if(unitGiven == "khz")
+            {
+                if(numValue >= 10 && numValue < 30)
+                {
+                    llSay(0,"VLF");
+                    // Object will rez and die after 5 seconds.
+                    llRezObject("VLF",llGetPos()+<0.5,0,.5>,ZERO_VECTOR,ZERO_ROTATION,10);
+                } // end if
+            } // end else
+            flag=0; // ???
+        } // end if
+    } // end listen
+    
+} // end state default

@@ -3,11 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using OpenSim.Region.OptionalModules.Example.BareBonesNonShared;
+using log4net;
+using System.Reflection;
 
 namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 {
+    [Serializable]
     class RadioPower
     {
+        private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+
         /// <summary>
         /// Convert a given unit of watts into dBW
         /// </summary>
@@ -97,18 +102,64 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <auhor>Mona</auhor>
         public static double CalculatePathloss(double distance, string runningFreqRT, string runningFreqRTUnit)
         {
+
             double path_loss = 0;
-
-            //Any input frequency is converted to Mhz using the the converter ontology!!
-            //the input frequency is in the following format ex 1000_hz
-            //The ontolgy converts the frequency value to mhz
-
-            Conversion.Initialize();
-            string from = Conversion.Get_Unit_Class1(runningFreqRT, runningFreqRTUnit);
-            string to = Conversion.Get_Unit_Class1("1", "mhz");
-            double result = Double.Parse(Conversion.Conversion_Between_units(from, to, runningFreqRT).Split('^')[0]);
-            path_loss = 20 * Math.Log10(distance) + 20 * Math.Log10(result) - 27.55;
+            double frequencyInMHz = convertHzUnit(Double.Parse(runningFreqRT), runningFreqRTUnit, "mhz");
+            path_loss = 20 * Math.Log10(distance) + 20 * Math.Log10(frequencyInMHz) - 27.55;
             return path_loss;
+        }
+        /// <summary>
+        /// Convert any unit into any unit.
+        /// Current supported unit are Hz, KHz, MHz, and GHz
+        /// </summary>
+        /// <param name="value">Current value for current unit</param>
+        /// <param name="from">Current Unit</param>
+        /// <param name="To">To Unit</param>
+        /// <returns></returns>
+        public static double convertHzUnit(double value, string from, string to)
+        {
+            
+            double hzValue = value;
+            from = from.ToLower();
+            to = to.ToLower();
+
+            double requiredValue = 0;
+
+            //First convert a given unit into Hz
+            switch (from)
+            {
+                case "hz":
+                    hzValue = value;
+                    break;
+                case "khz":
+                    hzValue = value * 1000;
+                    break;
+                case "mhz":
+                    hzValue = value * 1000000;
+                    break;
+                case "ghz":
+                    hzValue = value * 1000000000;
+                    break;
+            }//switch
+
+            //Now convert the hz into the required unit
+            switch (to)
+            {
+                case "hz":
+                    requiredValue = hzValue;
+                    break;
+                case "khz":
+                    requiredValue = hzValue / 1000;
+                    break;
+                case "mhz":
+                    requiredValue = hzValue / 1000000;
+                    break;
+                case "ghz":
+                    requiredValue = hzValue / 1000000000;
+                    break;
+            }
+
+            return requiredValue;
         }
     }
 }

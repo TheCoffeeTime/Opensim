@@ -1,0 +1,209 @@
+integer currentState;               //The current state of the navigation process. For more information, use TROVE Developer Documentation. 
+integer killRedBoxChannel = 2111;   //Communication channel, used to destroy 'red navigator box'
+string faceDirection;               //The current direction of where this R2D2(robot) is facing. 
+key personBeingServed;              //UUID of the person being served
+                                           
+vector home =  <129.5, 94.3405, 25.9805>;
+    //                      The house
+    //      -----------------------------------------
+    //      |                West                   |
+    //      |                 ^                     |
+    //      |                 |                     |
+    //      |                 |                     |
+    //      |       South<-----o------>North        |
+    //      |                 |                     |
+    //      |                 |                     |
+    //      |                 v                     |
+    //      |                East                   |
+    //      --    Entrance --------------------------
+
+//Walk from state 0 to the register booth and talk about it.
+runStateOne()
+{
+    //Walk from state 0 to the register booth. 
+    walkWithDirection(3, "West");
+    walkWithDirection(2.4, "South");
+    changeFaceDirection("East");
+    currentState = 1;
+    
+    //Create a red navigator box around the register booth. 
+    vector regBoothLocation = <127.3364, 91.3747, 26.6392>;
+    llRezObject("registerBoothRedBox", regBoothLocation , <0, 0, 0>, ZERO_ROTATION, 0);
+}
+
+//Walk from state 1 to the transmitter, then to the remote control and talk abou them
+runStateTwo()
+{
+    //Walk to the transmitter 
+    walkWithDirection(7.2, "West");
+    changeFaceDirection("South");
+    
+    //Create a nagvigator box around the transmitter
+    vector transmitterLocation = <118.4595, 89.8254, 27.4850>;
+    llRezObject("mediumSizeRedBox", transmitterLocation , <0, 0, 0>, ZERO_ROTATION, 0);
+    
+    //Wait for 2 seconds then remove the navigator box
+    llSleep(2);
+    llSay(killRedBoxChannel, "die");
+    
+    //Walk to the remote control
+    walkWithDirection(3, "West");
+    walkWithDirection(3, "North");
+    changeFaceDirection("West");
+
+    currentState = 2;
+}
+
+runGuide()
+{
+    
+    
+    changeFaceDirection("North");
+    walk(7);
+    changeFaceDirection("West");
+    llSleep(1);
+    
+    changeFaceDirection("North");
+    walk(14);
+    changeFaceDirection("East");
+    walk(5);
+    changeFaceDirection("North");
+    llSleep(1);
+    
+    changeFaceDirection("East");
+    walk(4);
+    changeFaceDirection("South");
+    walk(6);
+    changeFaceDirection("East");
+    
+    changeFaceDirection("South");
+    walk(7.5);
+    changeFaceDirection("East");
+    llSleep(1);
+    
+    llSay(0, "Goodbye, my service ends here!");
+    llSleep(4);
+    llResetScript();
+    
+    
+    
+    
+    
+    
+    
+}
+
+changeFaceDirection(string direction)
+{  
+    
+    if(direction == "North")
+    { 
+        faceDirection = "North";
+        vector rotationAngle = <270,0,180>; 
+        vector angles_in_radians = rotationAngle*DEG_TO_RAD; 
+        rotation rot = llEuler2Rot(angles_in_radians); 
+        llSetRot(rot);
+    }
+    else if(direction == "South")
+    {
+        faceDirection = "South";
+        vector rotationAngle = <90,0,0>;
+        vector angles_in_radians = rotationAngle*DEG_TO_RAD; 
+        rotation rot = llEuler2Rot(angles_in_radians); 
+        llSetRot(rot);
+    }
+    else if(direction == "West")
+    {
+        faceDirection = "West";
+        vector rotationAngle = <0,270, 270>;
+        vector angles_in_radians = rotationAngle*DEG_TO_RAD; 
+        rotation rot = llEuler2Rot(angles_in_radians); 
+        llSetRot(rot);
+    }
+    else if(direction == "East")
+    {
+        faceDirection = "East";
+        vector rotationAngle = <0,90, 90>;
+        vector angles_in_radians = rotationAngle*DEG_TO_RAD; 
+        rotation rot = llEuler2Rot(angles_in_radians); 
+        llSetRot(rot);
+    }
+    
+}//changeFaceDirection
+
+//Turn in that direction then walk toward where it's face is pointing
+walkWithDirection(float distance, string direction)
+{
+    changeFaceDirection(direction);
+    walk(distance);
+}
+
+//Walk to the direction where the face/eyes are looking at. 
+walk(float distance)
+{      
+    float distanceEachLoop = 0.3; 
+    float distanceSoFar = 0;
+    if(faceDirection == "North")
+    {
+        while(distanceSoFar < distance)
+        {
+            llSetPos(llGetPos() + <0, distanceEachLoop, 0>);
+            distanceSoFar += distanceEachLoop;
+        }
+    }
+    else if(faceDirection == "South")
+    {
+        while(distanceSoFar < distance)
+        {
+            llSetPos(llGetPos() - <0, distanceEachLoop, 0>);
+            distanceSoFar += distanceEachLoop;
+        }
+    }
+    else if(faceDirection == "East")
+    {
+        while(distanceSoFar < distance)
+        {
+            llSetPos(llGetPos() + <distanceEachLoop, 0, 0>);
+            distanceSoFar += distanceEachLoop;
+        }
+    }
+    else if(faceDirection == "West")
+    {
+        while(distanceSoFar < distance)
+        {
+            llSetPos(llGetPos() - <distanceEachLoop, 0, 0>);
+            distanceSoFar += distanceEachLoop;
+        }
+    }
+}
+
+default
+{
+    state_entry()
+    {
+        //Face 'out the house'
+        changeFaceDirection("East");
+        //Set its position to be in front of the house
+        llSetPos(home);
+        //Set the current start to be 0 i.e. wating to serve.
+        currentState = 0; 
+    }
+    
+    touch_start( integer num_detected )
+    { 
+        if(currentState == 0)
+        {
+            runStateOne();
+        }
+        else if(currentState == 1)
+        {
+            llSay(killRedBoxChannel, "die");
+            runStateTwo();
+        }
+        else
+        {
+            llSleep(2);
+            llSay(killRedBoxChannel, "die");
+        }
+     }
+}

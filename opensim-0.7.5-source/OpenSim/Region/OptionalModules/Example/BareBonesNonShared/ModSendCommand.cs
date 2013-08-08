@@ -12,7 +12,7 @@
            4. The script will receive that message in the link_message(...) method.
  * For more details, keep reading..
 
-  To send a message from the world to the server (a region module), use modSendCommand. 
+  1. To send a message from the world to the server (a region module), use modSendCommand. 
   To use: modSendCommand([command] [string1] [string2]) ---> place this in a script in the world NOT in here. 
   e.g.    modSendCommand("MYMOD", "This is a message from a script to the server", "this is also a message")
   [command] is to specify what command that script wants to do. You can add more command below, just follow the pattern. 
@@ -20,18 +20,17 @@
   e.g. leaving them blank would be modSendCommand("command1", "", "") etc.
   The message sent from script will arrive in ProcessScriptCommand method below. 
 
-  To send message from this class back to the script, use "m_commsMod.DispatchReply()" in the "ProcessScriptCommand" method
+  3. To send message from this class back to the script, use "m_commsMod.DispatchReply()" in the "ProcessScriptCommand" method
   To use: m_commsMod.DispatchReply(scriptId, 1, [your message], "")
   To be honest, I don't actually understand the whole interface but it works. Instead of [your message], just give whatever 
   string you want to pass to the client and leave other parameters as they are (or you can play around with them if you want)
   Note: This can only be done when a script in the world has sent a message to here. 
 
-  After a message is sent from here, it will arrive in the script in the link message
+  4. After a message is sent from here, it will arrive in the script in the link message
  
   link_message(integer sender_num, integer num, string message, key id)
   {
-       your code goes here... whatever you want to do with the server message or you can just do nothing
-       so you don't even need this method
+       your code goes here... whatever you want to do with the server message.
   }
   
  */
@@ -113,8 +112,6 @@ namespace ModSendCommandExample
             //m_commsMod.DispatchReply(scriptId, 1, "String 1: " + input1, "");
             //m_commsMod.DispatchReply(scriptId, 1, "String 2: " + input2, "");
 
-            //
-
             switch (module)
             {
                 case "MYMOD":       string[] tokens = input1.Split(new char[] { '_' }, StringSplitOptions.None);
@@ -160,6 +157,16 @@ namespace ModSendCommandExample
                                     break;
                 case "GetMaterial": getMaterial();
                                     break;
+
+                //This method can only be called after the ray tracer model has been initialised and post initialised
+                //Input1 contains no of reflection, pathID, and rayID (keys), Input2 contains the position of where 
+                //the ray was pressed;
+                case "getStrengthAt": double signalStrength = raytrace.getStrengthAt(input1, input2);
+                                    m_log.DebugFormat("[strength = ]" + signalStrength.ToString());
+                                      m_commsMod.DispatchReply(scriptId, 1, "Strength: " + signalStrength.ToString(), "");
+                                    break;
+
+
             }//switch
         }//ProcessScriptCommand
 

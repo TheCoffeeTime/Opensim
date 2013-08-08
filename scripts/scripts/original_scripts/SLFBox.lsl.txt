@@ -1,0 +1,33 @@
+integer StartExp=777;
+integer flag=0;
+default
+{
+    state_entry()
+    {
+       // llSay(0, "Script running");
+       llSetText("SLF",<1,1,1>,1.0);
+       llListen(StartExp,"",NULL_KEY,"");
+       llListen(0,"",llDetectedKey(0),"");
+       flag=0;
+       
+    }
+     listen(integer chan, string name, key id, string msg) {
+        
+        
+        
+            if(chan==StartExp)
+            {
+                flag=1;
+            }
+            if(chan==0 && flag==1)
+            
+            {
+            float value=(float)msg;
+            if(value>=30 && value<300)
+            llSay(0,"SLF");
+            flag=0;
+        }
+             
+       
+    }
+}

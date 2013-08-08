@@ -1,0 +1,87 @@
+body {
+background-image:url('images/background2.jpg');
+margin: 0;
+}
+
+.logo {
+margin-left: 100px;
+}
+
+.frequencyRange {
+margin-top:-90px;
+margin-left: 450px;
+background-color: #FFAD33;
+width: 500px; /*Should be the same as logo's margin-left */
+height: 40px;
+border-radius: 10px;
+color: #7A1F00;
+}
+
+.frequencyRange h1{
+margin-left: 15px;
+font-size:28px;
+}
+
+.body2{
+width: 850px;
+background-color: #F2F2F2;
+margin-left:100px;
+margin-top:100px;
+}
+.frequencyRangeInfo {
+font-family:"Verdana";
+color: #FFFFFF;
+margin-top:40px;
+margin-left:100px;
+width:850px;
+}
+
+.frequencyRangeInfo h2{
+margin-left: 20px;
+margin-top: -20px;
+}
+
+.slidershowWrapper  {
+margin-top:10px;
+margin-left:100px;
+background-color: #0C0C0C;
+width:610px;
+height: 540px; /* Height of an image + approximate text description height*/
+border-radius:3px;
+}
+
+.emptyBox {
+height:1px;
+}
+
+.slideshow { 
+margin-left:5px;
+margin-top:4px; /* 1 less than left and right because there is already an empty box of 1px*/
+height: 400px;  /* The height of the image. */
+width: 600px;   /* The width of the image. If this is change, you must change the width of the text as well*/
+}
+
+.textSlideShow{
+margin-top:-20px;
+margin-left:10px;
+font-size:20px;
+font-family:"Verdana";
+color:#FFFFFF;
+width: 600px; /* Must be the same as width for slideshow (just 5 lines above)*/
+}
+
+.buttonContainer {
+margin-left:105px;
+}
+
+.moreInfo {
+margin-left: 720px;
+margin-top: -565px;
+width: 215px;
+background-color:#FFAD33;
+color: #000000;
+padding: 10px;
+font-size:15px;
+font-family:"Verdana";
+border-radius:3px;
+}

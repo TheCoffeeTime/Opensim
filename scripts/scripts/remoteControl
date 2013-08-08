@@ -1,0 +1,164 @@
+integer dieChannel=898989;
+integer TelChannel=8;
+integer GrChannel=16;
+integer SPlChannel=17;
+integer delay=0;
+integer screen_side = 2;
+init(string scriptUrl)
+{
+
+   string url = "http://localhost/www/controlBoard/remoteControl.php?url=" + scriptUrl;
+   llSay(0,url);
+    integer face2 = 2;
+    llClearPrimMedia(face2);
+        llSetPrimMediaParams(face2,
+                                                                //To start once everything is loaded. 
+                                                                [PRIM_MEDIA_AUTO_PLAY,TRUE,
+                                                                 PRIM_MEDIA_WIDTH_PIXELS, 700,
+                                                                 PRIM_MEDIA_HEIGHT_PIXELS, 420,
+                                                                //The URL of the radio simulator site. 
+                                                                PRIM_MEDIA_CURRENT_URL, url,
+                                                                PRIM_MEDIA_AUTO_ZOOM,TRUE,
+                                                                PRIM_MEDIA_AUTO_SCALE,TRUE,
+                                                                //Standard web navigation controls.
+                                                                PRIM_MEDIA_CONTROLS,1]);
+    
+}
+    
+key gRequestURL;
+string gURL;
+ 
+default
+{
+    state_entry()
+    {
+      llSetText("Remote Control",<1,1,1>,1.0);
+      integer k =1;
+      //Setting the screen properties. 
+      k=      llSetPrimMediaParams(screen_side,
+               //To start once everything is loaded. 
+              [PRIM_MEDIA_AUTO_PLAY,TRUE,
+               //Full screen
+               PRIM_MEDIA_AUTO_SCALE,TRUE,
+               //The URL of the radio simulator site. 
+               PRIM_MEDIA_CURRENT_URL, "http://localhost/www/controlBoard/remoteControl.php",
+               PRIM_MEDIA_AUTO_ZOOM,TRUE,
+               //Standard web navigation controls.
+               PRIM_MEDIA_CONTROLS,1]);  
+               
+      //Echo error message if the object doesn't belong to the land owner
+      if ( llParcelMediaQuery([PARCEL_MEDIA_COMMAND_TEXTURE]) == [] )
+              llSay(0, "Lacking permission to set/query parcel media. This object has to be owned by/deeded to the land owner.");
+          
+        llListen(dieChannel,"",NULL_KEY,"");
+        gRequestURL = llRequestURL();    
+    }
+ 
+    //Triggered when this object receives an HTTP request
+    http_request(key id, string method, string body) 
+    {
+      llSay(0, "Body: " + body);
+      llSay(0, "Method: " + method);
+      
+      //If it is what has just been requested (done in the state entry) 
+      if (id == gRequestURL) 
+      {
+
+        //Convert into URL format, e.g. space become %20
+        string arg = llEscapeURL(body);
+        init(arg);
+      }//if
+      
+      //This http request is most likely received when a button on this remote control is pressed. 
+      else 
+      {
+        string msgType = llGetSubString(body, 0, 0);
+        string data = llGetSubString(body, 1, -1);
+        string data1=llGetSubString(body, 1, -1);
+        
+         //It is a message from one of the buttons on the remote control 
+        if (msgType == "1") 
+        {
+          // '//' is a seperator for a command and parameters that might be use with that command
+          //Some commands may not have another parameters to go with it and some may do. 
+          list commandAndParameters = llParseString2List(data, ["//"], [" ", "+", "="]);
+          string command = llList2String(commandAndParameters, 0);
+          string parameter = "";
+          //If command has parameters then set it
+          if(llGetListLength(commandAndParameters) >= 2)
+          {
+              parameter = llList2String(commandAndParameters, 1);
+          }//if
+          
+          //Apply actions to different command
+          //I would prefer using a switch statement but it is not supoorted for some reason. 
+          if (command=="Teleport")
+          {
+            //Debugging message
+            llSay(0, "Teleporting to " + parameter);
+            modSendCommand(command, parameter, "");
+            //llSay(TelChannel,"");
+            //llSetTimerEvent(1);
+          }//if teleport
+          
+          else if (command == "RayTrace")
+          {
+              //Debugging message
+              llSay(0, "Restarting ray tracer: " + parameter);
+              modSendCommand(command, parameter, "");
+          }//else if
+          else if(command == "DeleteRayTrace")
+          {
+              //Debugging message
+              llSay(0, "Deleting all rays");
+              modSendCommand(command, parameter, "");
+          }
+            
+          llHTTPResponse(id,200,"");
+        }//if 
+        else if (msgType == "2") 
+        {
+            // it's a time of data request
+            float tod = llGetTimeOfDay( );
+            string reply = "Time since last region restart or SL midnight (based on SL 4 hour day):";
+            integer hours = ((integer)tod / 3600) ;
+            integer minutes = ((integer)tod / 60) - (hours * 60);
+            reply += (string) tod + " seconds which is "+(string) hours+"h "+(string) minutes+"m"; 
+            llHTTPResponse(id,200, reply);
+        }//else               
+      }//else
+    }//http_request
+    
+    listen(integer channel, string name, key id, string message)
+    {
+      if (message == "DIE")
+      {
+         llDie();
+      }//if
+    }//listen
+    
+    timer() 
+    {
+      delay++;
+      //if(delay==4)
+      //llDie();     
+    }//timer
+    
+    // reset script when the object is rezzed
+    on_rez(integer start_param)
+    {
+        llResetScript();
+    }//on_rez
+ 
+    changed(integer change)
+    {
+        // reset script when the owner or the inventory changed
+        if (change & (CHANGED_OWNER | CHANGED_INVENTORY))
+            llResetScript();
+    }//changed
+   
+    link_message(integer sender_num, integer num, string message, key id)
+    {
+        llSay(0, message);
+    } // end link_message
+}
