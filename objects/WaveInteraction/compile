@@ -1,0 +1,2 @@
+#!/bin/bash
+g++ -lglut -I./ waveInteraction.cpp -o waveInteraction

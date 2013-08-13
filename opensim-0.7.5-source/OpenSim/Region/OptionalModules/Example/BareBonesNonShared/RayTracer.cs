@@ -99,9 +99,9 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         public string rayScript;                   //An lsl script for each ray
         public static int rayID;                   //Each ray has a unique id
         public static int pathID;                  //Each path has a unique id
-        public static List<Vector3> allRayPos;     //A list of vectors for all ray position. This will be used to check for repition.
-
-        public int noCount = 0;
+        static List<Vector3> allRayPos;            //A list of vectors for all ray position. This will be used to check for repition.
+        List<SceneObjectGroup> addedSog;           //Keep track of objects added to the world. (So that we can delete them)
+        int drawRayIndex;                          //Current index for drawing a path from transmitter to receiver
 
         double DEG_TO_RAD = Math.PI / 180.0;
 
@@ -119,8 +119,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
             //Initialise variables parsed from the remote control. 
             int noOfInitVar = initialiseVariables(setOfvariables);
-            rayID = 0;
-            pathID = 0;
             m_log.DebugFormat("[RAY TRACER INITIALISATION]: total number of initialised variables = " + noOfInitVar.ToString());
 
             //Get all the entities in the world
@@ -163,8 +161,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             {
                 pathHits[i] = new Dictionary<string, PathFromTxToRy>();
             }
-
-            allRayPos = new List<Vector3>();
             
             m_log.DebugFormat("[RAY TRACER INITIALISATION]: Complete!");
 
@@ -251,20 +247,29 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                 }//else
             }//foreach
 
+            //Initialise other vairables
+            drawRayIndex = 0;
+            rayID = 0;
+            pathID = 0;
+            allRayPos = new List<Vector3>();
+            addedSog = new List<SceneObjectGroup>();
             return countVariable;
         }
         /// <summary>
         /// </summary>
-        public void PostInitialise()
+        public void RayTrace(bool onlyUpToOneReflection)
         {
-            //For debugging purpose for now
-            noCount = 0;
+            //This variable is for debugging purpose
             int noOfElement = 0;
-            startRayTracerBrutefoce();
-
-            //Add(if there is any) the line-of-sight and 1-reflections rays into the hit list. 
-            DirectMap0Ref();
-            DirectMap1Ref();
+            if (!onlyUpToOneReflection)
+            {
+                startRayTracerBrutefoce();
+            }
+            else //Add(if there is any) the line-of-sight and 1-reflections rays into the hit list. 
+            {
+                DirectMap0Ref();
+                DirectMap1Ref();
+            }
             
             noOfElement = pathHits[0].Count;
             noOfElement += pathHits[1].Count;
@@ -272,18 +277,10 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             noOfElement += pathHits[3].Count;
             noOfElement += pathHits[4].Count;
             noOfElement += pathHits[5].Count;
-
-            m_log.DebugFormat("Number of element counted" + noCount);
-            m_log.DebugFormat("Number of element in the list" + noOfElement);
-
-            for(int i = 0; i < MAX_REFLECTIONS + 1; i++)
-            {
-                foreach (KeyValuePair<string, PathFromTxToRy> path in pathHits[i])
-                {
-                    drawRayPath(path.Value);
-                }
-            }
+            m_log.DebugFormat("Total no. of path in the list: " + noOfElement);
         }
+
+
         /// <summary>
         /// Find if transmitter and receiver exist by checking all the objects in the world name. 
         /// Transmitter = Tx, Receiver = Ry.
@@ -364,7 +361,6 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     if (thisRayPath.reachesReceiver && !checkPathIsDrawn(thisRayPath))
                     {
                         pathHits[thisRayPath.getNoOfReflection()].Add(pathID, thisRayPath);
-                        noCount++;
                     }
                 }
            }//for
@@ -379,12 +375,12 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             Ray ray = new Ray(transmitter.RootPart.AbsolutePosition, direction);
             //Get the first object the ray hit
             EntityIntersectionWithPart intersection = findNextHit(ray, transmitter.RootPart);
-            if (intersection.intersection.HitTF && intersection.intersectPart.Equals(receiver.RootPart))
+            path.addNextPoint(receiver.RootPart.AbsolutePosition, receiver.RootPart.Material);
+            path.reachesReceiver = true;
+            if (!checkPathIsDrawn(path))
             {
-                path.addNextPoint(receiver.RootPart.AbsolutePosition, receiver.RootPart.Material);
-                path.reachesReceiver = true;
                 pathHits[0].Add(pathID, path);
-            }//if
+            }
         }
         public void DirectMap1Ref()
         {
@@ -399,7 +395,10 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
                     newPath.addNextPoint(reflectedPoint.reflectionPoint, reflectedPoint.surfaceMaterial);
                     newPath.addNextPoint(receiver.RootPart.AbsolutePosition, receiver.RootPart.Material);
                     newPath.reachesReceiver = true;
-                    pathHits[1].Add(pathID, newPath);
+                    if (!checkPathIsDrawn(newPath))
+                    {
+                        pathHits[1].Add(pathID, newPath);
+                    }
                 }//if
             });//forEachPart
         }
@@ -740,6 +739,21 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             return id;
         }
         /// <summary>
+        /// Draw one path which has no of relfection = the given noOfReflection. It will then increase the 
+        /// index so if this function is called again, it will draw a different path
+        /// </summary>
+        public void drawRayPath(int noOfReflection)
+        {
+            string[] keys = pathHits[noOfReflection].Keys.ToArray();
+            if (drawRayIndex >= keys.Length)
+            {
+                drawRayIndex = 0;
+            }
+            drawRayPath(pathHits[noOfReflection][keys[drawRayIndex]]);
+            drawRayIndex++;
+            m_log.DebugFormat("[Drawing stuff]");
+        }
+        /// <summary>
         /// Draw a given path (A given path may contains many rays). This method just get all the ray in the 
         /// given path and draw them sequentially.
         /// </summary>
@@ -796,26 +810,13 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// </summary>
         public void deleteRays()
         {
-            try
+            if (addedSog != null)
             {
-                EntityBase[] R_prims = m_scene.GetEntities();
-                m_log.DebugFormat("[BARE BONES NON SHARED] Found {0} Entities!", R_prims.Length);
-
-                //For each prim in the world, if their name is Rays, then delete them. 
-                foreach (EntityBase prim in R_prims)
+                foreach (var ray in addedSog)
                 {
-                    if (prim.Name.CompareTo("Rays") == 0)
-                    {
-                        m_scene.DeleteSceneObject((SceneObjectGroup)prim, false);
-                    }
-
+                    m_scene.DeleteSceneObject(ray, false);
                 }
-                m_log.DebugFormat("[BARE BONES NON SHARED] Delete all Rays in scene");
             }
-            catch (Exception ex)
-            {
-            }
-
         }
         /// <summary>
         /// Add a given object to the world. If you prefer argument to use default value, when pass it as null. 
@@ -828,11 +829,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
         /// <param name="rotation">double(x, y, z) where x, y, and z represent angle of rotation from its axis in radian</param>
         /// <param name="primType">There are only 3 types which are Box, </param>
         /// <param name="script"> The LSL script which will be attached to this object</param>
-        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, 
-                                        Quaternion rotation, int primType, string script)
+        public void addObjectToTheWorld(string name, Vector3 position, Vector3 dimension, Quaternion rotation, int primType, string script)
         {
-            //When coloring object, -1 indicate that set all faces that color. 
-            int face = -1;
 
             //Generate a new UUID for this ray
             UUID rayUUID = UUID.Random();
@@ -884,6 +882,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
             m_scene.AddNewSceneObject(sog, false);
             sog.ScheduleGroupForFullUpdate();
             sog.HasGroupChanged = true;
+
+            addedSog.Add(sog);
         }
         /// <summary>
         /// </summary>

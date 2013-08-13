@@ -1,0 +1,9 @@
+default
+{
+    state_entry()                                   
+    {                                               
+       float SPEED = .25;
+       llSetTextureAnim(ANIM_ON | SMOOTH | LOOP, ALL_SIDES, 0, 0, 1.0, 1000, SPEED);
+    }
+}
+

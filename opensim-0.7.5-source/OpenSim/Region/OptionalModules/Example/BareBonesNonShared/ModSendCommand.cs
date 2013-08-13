@@ -63,6 +63,7 @@ namespace ModSendCommandExample
         IScriptModuleComms m_commsMod;
         RayTracer raytrace = new RayTracer();
         IConfigSource Source;
+       
         /**
          * Sets the transmitter to the prim with the name Tx and the 
          * receiver to the prim called Rx.
@@ -123,38 +124,50 @@ namespace ModSendCommandExample
                                     m_commsMod.DispatchReply(scriptId, 1, result.Split('|')[0], "");
                                     break;
 
-                case "RayTrace":    //Initialise variables
+                case "RayTrace0To1":    //Initialise variables
+                                    raytrace.deleteRays();
                                     raytrace.Initialise(m_scene, input1, scriptId);
                                     raytrace.deleteRays();
-                                    raytrace.PostInitialise();
+                                    raytrace.RayTrace(true);
+                                    //raytrace.drawAllRays();
+                                    break;
+
+                case "RayTrace0ToMax": //Initialise variables
+                                    raytrace.deleteRays();
+                                    raytrace.Initialise(m_scene, input1, scriptId);
+                                    raytrace.deleteRays();
+                                    raytrace.RayTrace(false);
                                     //raytrace.drawAllRays();
                                     break;
 
                 case "DeleteRayTrace":  
-                                    
                                     raytrace.deleteRays();
                                     break;
 
                 case "IDtype1":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(0);
                                     break;
 
                 case "IDtype2":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(1);
                                     break;
 
                 case "IDtype3":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(2);
                                     break;
 
                 case "IDtype4":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(3);
                                     break;
 
                 case "IDtype5":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(4);
                                     break;
 
                 case "IDtype6":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(5);
                                     break;
 
-                case "IDtype7":     raytrace.deleteRays();
-                                    break;
                 case "GetMaterial": getMaterial();
                                     break;
 

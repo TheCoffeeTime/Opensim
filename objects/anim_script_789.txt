@@ -1,0 +1,94 @@
+// Script Name: anim_script.lsl
+// Author: Anonymous
+//Plays an animation when an object is attached
+
+// Downloaded from : http://www.free-lsl-scripts.com/cgi/freescripts.plx?ID=761
+
+// This program is free software; you can redistribute it and/or modify it.
+// Additional Licenes may apply that prevent you from selling this code
+// and these licenses may require you to publish any changes you make on request.
+//
+// There are literally thousands of hours of work in these scripts. Please respect
+// the creators wishes and Copyright law and follow their license requirements.
+//
+// This header and License information included herein must be included in any script you give out or use.
+// Licenses may also be included in the script or comments by the original author, in which case
+// the authors license must be followed, and  their licenses override any licenses outlined in this header.
+//
+// You cannot attach a license to any of these scripts to make any license more or less restrictive.
+//
+// All scripts by avatar Ferd Frederix, unless stated otherwise in the script, are licensed as Creative Commons By Attribution and Non-Commercial.
+// Commerical use is NOT allowed for resale of my scripts.  See http://creativecommons.org/licenses/by-nc/3.0/ for more details and the actual license agreement.
+// This means you cannot sell my  scripts unless they are FREE.  
+// Scripts by Ferd Frederix may be reused and sold when included with a build that actually uses these scripts. Putting my script in a prim and reselling it does not constitute a build.
+// I reserve the right to detemine, at my sole discretion, what constitutes a build. My script source code must
+// always be freely available, which means it must be MOD, COPY and TRANSFER.
+// For any reuse or distribution, you must make clear to others the license terms of my works.
+//
+// A GNU license, if attached by the author, also means the original code must be Open Source.   If you modify it, it must be
+// freely available to others.   You may not impose a license fee, royalty, or other charge for exercise of rights granted under this License
+// Modifications can be made and products sold with the scripts in them.
+// The script itself must be marked as MOD/COPY/XFER or otherwise made available by you as Open Source.
+// You cannot attach a license to make a GNU License more restrictive.
+// see http://www.gnu.org/copyleft/gpl.html
+
+// Creative Commons licenses apply to all scripts from the Second Life - Commerical use is allowed.
+// The scripts are Copyrighted by Linden Lab, and licensed under the Creative Commons Attribution-Share Alike 3.0 License.
+// See http://www.creativecommons.org/licenses/by-sa/3.0/
+// Notice — For any reuse or distribution, you must make clear to others the license terms of this work.
+// The best way to do this is with a link to this web page. 
+
+// You must leave any author credits and any following headers intact in any script you use or publish.
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// If you don't like these restrictions and licenses, then don't use these scripts.
+//////////////////////// ORIGINAL AUTHORS CODE BEGINS ////////////////////////////////////////////
+
+// CATEGORY:Animation
+// DESCRIPTION:Plays an animation when an object is attached
+// ARCHIVED BY:Ferd Frederix
+
+string anim = "boomboxin2";
+
+integer attached = FALSE;  
+integer permissions = FALSE;
+
+default
+{
+    state_entry()
+    {
+        llRequestPermissions(llGetOwner(),  PERMISSION_TRIGGER_ANIMATION);
+    }
+    
+    run_time_permissions(integer permissions)
+    {
+        if (permissions > 0)
+        {
+            llStartAnimation(anim);
+            attached = TRUE;
+            permissions = TRUE;
+        }
+    }
+
+    attach(key attachedAgent)
+    {
+        if (attachedAgent != NULL_KEY)
+        {
+            attached = TRUE;
+            
+            if (!permissions)
+            {
+                llRequestPermissions(llGetOwner(),  PERMISSION_TRIGGER_ANIMATION);   
+            }
+        }
+        
+        else
+        {
+            attached = FALSE;
+            llStopAnimation(anim);
+        }
+    }
+}
+
+// END //
+
+

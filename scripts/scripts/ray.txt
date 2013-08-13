@@ -1,5 +1,5 @@
-﻿float glowIntensity = 0.1;
-float alphaIntensity = 0.15;
+﻿float glowIntensity = 0.4;
+float alphaIntensity = 0.50;
 
 default
 {

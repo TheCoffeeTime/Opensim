@@ -6,7 +6,6 @@ integer delay=0;
 integer screen_side = 2;
 init(string scriptUrl)
 {
-
    string url = "http://localhost/www/controlBoard/remoteControl.php?url=" + scriptUrl;
    llSay(0,url);
     integer face2 = 2;
@@ -31,6 +30,7 @@ string gURL;
 default
 {
     state_entry()
+
     {
       llSetText("Remote Control",<1,1,1>,1.0);
       integer k =1;
@@ -81,7 +81,7 @@ default
         {
           // '//' is a seperator for a command and parameters that might be use with that command
           //Some commands may not have another parameters to go with it and some may do. 
-          list commandAndParameters = llParseString2List(data, ["//"], [" ", "+", "="]);
+          list commandAndParameters = llParseString2List(data, ["//"], []);
           string command = llList2String(commandAndParameters, 0);
           string parameter = "";
           //If command has parameters then set it
@@ -100,17 +100,15 @@ default
             //llSay(TelChannel,"");
             //llSetTimerEvent(1);
           }//if teleport
-          
-          else if (command == "RayTrace")
-          {
-              //Debugging message
-              llSay(0, "Restarting ray tracer: " + parameter);
-              modSendCommand(command, parameter, "");
-          }//else if
           else if(command == "DeleteRayTrace")
           {
               //Debugging message
               llSay(0, "Deleting all rays");
+              modSendCommand(command, parameter, "");
+          }
+          else //start ray tracing 0-1 reflect, 0-5 reflections, draw ray with 0 reflection, 1, 2, 3, 4, 5 reflections. 
+          {
+              llSay(0, "Command: " + command);
               modSendCommand(command, parameter, "");
           }
             
@@ -144,6 +142,7 @@ default
       //llDie();     
     }//timer
     
+
     // reset script when the object is rezzed
     on_rez(integer start_param)
     {
