@@ -55,7 +55,8 @@ namespace OpenSim.Region.OptionalModules.Example.BareBonesNonShared
 
             double reflectionLoss = 0;
             reflectionLoss = -20 * Math.Log10(refCoef);
-            return reflectionLoss;
+            //return reflectionLoss;
+            return 0; //At the moment, there is no reflection loss. Please update this equation.
         }
         /// <summary>
         /// The path loss is calculated in dB where d is in meters and f in megahertz

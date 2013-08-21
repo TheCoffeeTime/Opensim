@@ -63,6 +63,9 @@ namespace ModSendCommandExample
         IScriptModuleComms m_commsMod;
         RayTracer raytrace = new RayTracer();
         IConfigSource Source;
+        //The current index of path drawn (keep track when next or previous button is pressed)
+        int pathIndex = 0;
+        int currentNoOfReflectionSeleted = 0;
        
         /**
          * Sets the transmitter to the prim with the name Tx and the 
@@ -105,7 +108,6 @@ namespace ModSendCommandExample
             Source = source;
         }
 
-        // YOUR CODE SHOULD START HERE IN THIS METHOD. 
         void ProcessScriptCommand(UUID scriptId, string reqId, string module, string input1, string input2)
         {
             // Example of how to send message back to the script as an acknowledgement
@@ -113,6 +115,18 @@ namespace ModSendCommandExample
             //m_commsMod.DispatchReply(scriptId, 1, "String 1: " + input1, "");
             //m_commsMod.DispatchReply(scriptId, 1, "String 2: " + input2, "");
 
+            //It the command is start ray tracing. 
+            if (module == "RayTrace0To1" || module == "RayTrace0ToMax")
+            {
+                
+
+
+
+                //raytrace.deleteRays();
+                //raytrace.Initialise(m_scene, input1, scriptId);
+                
+                //raytrace.RayTrace(false);
+            }
             switch (module)
             {
                 case "MYMOD":       string[] tokens = input1.Split(new char[] { '_' }, StringSplitOptions.None);
@@ -124,52 +138,58 @@ namespace ModSendCommandExample
                                     m_commsMod.DispatchReply(scriptId, 1, result.Split('|')[0], "");
                                     break;
 
-                case "RayTrace0To1":    //Initialise variables
-                                    raytrace.deleteRays();
-                                    raytrace.Initialise(m_scene, input1, scriptId);
-                                    raytrace.deleteRays();
-                                    raytrace.RayTrace(true);
-                                    //raytrace.drawAllRays();
-                                    break;
-
-                case "RayTrace0ToMax": //Initialise variables
-                                    raytrace.deleteRays();
-                                    raytrace.Initialise(m_scene, input1, scriptId);
-                                    raytrace.deleteRays();
-                                    raytrace.RayTrace(false);
-                                    //raytrace.drawAllRays();
-                                    break;
-
                 case "DeleteRayTrace":  
                                     raytrace.deleteRays();
                                     break;
 
+                case "IDtype0":     raytrace.deleteRays();
+                                    raytrace.drawRayPath(0, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 0;
+                                    break;
+
                 case "IDtype1":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(0);
+                                    raytrace.drawRayPath(1, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 1;
                                     break;
 
                 case "IDtype2":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(1);
+                                    raytrace.drawRayPath(2, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 2;
                                     break;
 
                 case "IDtype3":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(2);
+                                    raytrace.drawRayPath(3, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 3;
                                     break;
 
                 case "IDtype4":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(3);
+                                    raytrace.drawRayPath(4, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 4;
                                     break;
 
                 case "IDtype5":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(4);
+                                    raytrace.drawRayPath(5, 0);
+                                    pathIndex = 0;
+                                    currentNoOfReflectionSeleted = 5;
                                     break;
 
-                case "IDtype6":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(5);
+                case "NextPath":    raytrace.deleteRays();
+                                    pathIndex++;
+                                    pathIndex = raytrace.checkAndGetCorrectPathIndex(currentNoOfReflectionSeleted, pathIndex);
+                                    raytrace.drawRayPath(currentNoOfReflectionSeleted, pathIndex);
                                     break;
 
-                case "GetMaterial": getMaterial();
+                case "PreviousPath": raytrace.deleteRays();
+                                    pathIndex--;
+                                    pathIndex = raytrace.checkAndGetCorrectPathIndex(currentNoOfReflectionSeleted, pathIndex);
+                                    raytrace.drawRayPath(currentNoOfReflectionSeleted, pathIndex);
                                     break;
+
 
                 //This method can only be called after the ray tracer model has been initialised and post initialised
                 //Input1 contains no of reflection, pathID, and rayID (keys), Input2 contains the position of where 
@@ -178,25 +198,53 @@ namespace ModSendCommandExample
                                     m_log.DebugFormat("[strength = ]" + signalStrength.ToString());
                                       m_commsMod.DispatchReply(scriptId, 1, "Strength: " + signalStrength.ToString(), "");
                                     break;
+                default:            break;
 
 
             }//switch
         }//ProcessScriptCommand
 
-        void getMaterial()
+        public class Request
         {
-            EntityBase[] allEntities = m_scene.GetEntities();
-            for (int i = 0; i < allEntities.Length; i++)
+            public UUID scriptID;
+            public string command;
+            public string input1;
+            public string input2;
+
+            public Request(UUID _scriptID, string _command, string _input1, string _input2)
             {
-                if (allEntities[i] is SceneObjectGroup)
+                scriptID = _scriptID;
+                command = _command;
+                input1 = _input1;
+                input2 = _input2;
+            }//constructure
+        }
+        public class RayTracerRequestHandler
+        {
+            Queue<Request> rayTracerQueue;                          //The request queue
+            bool isBusy;                                            //The lock to prevent other request using the resource.
+
+            public RayTracerRequestHandler()
+            {
+                rayTracerQueue = new Queue<Request>();              
+                isBusy = false;                                     
+            }//constructure
+
+            public void handleARequest(Request newRequest)
+            {
+                //If there is nothing in the queue
+                if (!isBusy)
                 {
-                    SceneObjectGroup sog = (SceneObjectGroup)allEntities[i];
-                    if (sog.RootPart.Name.CompareTo("getMaterial") == 0)
+                    isBusy = true;
+                    if (newRequest.command == "RayTrace0To1" || )
                     {
-                        sog.RootPart.SetText(sog.RootPart.Material.ToString());
                     }
-                }//if
-            }//for
+                }
+                else //it is busy, just add the request to the queue
+                {
+                    rayTracerQueue.Enqueue(newRequest);
+                }
+            }
         }
     }//class
 }//name space
