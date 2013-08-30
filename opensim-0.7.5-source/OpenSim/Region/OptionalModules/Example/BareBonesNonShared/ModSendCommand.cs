@@ -21,7 +21,7 @@
   The message sent from script will arrive in ProcessScriptCommand method below. 
 
   3. To send message from this class back to the script, use "m_commsMod.DispatchReply()" in the "ProcessScriptCommand" method
-  To use: m_commsMod.DispatchReply(scriptId, 1, [your message], "")
+  To use: m_commsMod.DispatchReply(scriptID, 1, [your message], "")
   To be honest, I don't actually understand the whole interface but it works. Instead of [your message], just give whatever 
   string you want to pass to the client and leave other parameters as they are (or you can play around with them if you want)
   Note: This can only be done when a script in the world has sent a message to here. 
@@ -57,15 +57,15 @@ namespace ModSendCommandExample
     [Extension(Path = "/OpenSim/RegionModules", NodeName = "RegionModule")]
     public class MyRegionModule : INonSharedRegionModule
     {
-
+        //For debugging purpose. Variables used for sneding message and debugging
         private static readonly ILog m_log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        Scene m_scene;
         IScriptModuleComms m_commsMod;
-        RayTracer raytrace = new RayTracer();
+
+        //Other variables which need to be initialised here. 
+        Scene m_scene;
         IConfigSource Source;
-        //The current index of path drawn (keep track when next or previous button is pressed)
-        int pathIndex = 0;
-        int currentNoOfReflectionSeleted = 0;
+
+        RayTracerRequestHandler rayTracerRequestHandler;
        
         /**
          * Sets the transmitter to the prim with the name Tx and the 
@@ -92,15 +92,16 @@ namespace ModSendCommandExample
 
         public void AddRegion(Scene scene)
         {
-            m_scene = scene;
         }
 
         public void RemoveRegion(Scene scene) { }
 
         public void RegionLoaded(Scene scene)
         {
+            m_scene = scene;
             m_commsMod = m_scene.RequestModuleInterface<IScriptModuleComms>();
             m_commsMod.OnScriptCommand += ProcessScriptCommand;
+            rayTracerRequestHandler = new RayTracerRequestHandler(m_commsMod, m_scene);
         }
 
         public void Initialise(IConfigSource source) 
@@ -108,143 +109,30 @@ namespace ModSendCommandExample
             Source = source;
         }
 
-        void ProcessScriptCommand(UUID scriptId, string reqId, string module, string input1, string input2)
+        void ProcessScriptCommand(UUID scriptID, string reqId, string command, string input1, string input2)
         {
             // Example of how to send message back to the script as an acknowledgement
-            //m_commsMod.DispatchReply(scriptId, 1, "Command received: " + module, "");
-            //m_commsMod.DispatchReply(scriptId, 1, "String 1: " + input1, "");
-            //m_commsMod.DispatchReply(scriptId, 1, "String 2: " + input2, "");
+            //m_commsMod.DispatchReply(scriptID, 1, "Command received: " + module, "");
+            //m_commsMod.DispatchReply(scriptID, 1, "String 1: " + input1, "");
+            //m_commsMod.DispatchReply(scriptID, 1, "String 2: " + input2, "");
 
-            //It the command is start ray tracing. 
-            if (module == "RayTrace0To1" || module == "RayTrace0ToMax")
+            //If command = mymod
+            if (command == "MYMOD")
             {
-                
-
-
-
-                //raytrace.deleteRays();
-                //raytrace.Initialise(m_scene, input1, scriptId);
-                
-                //raytrace.RayTrace(false);
+                string[] tokens = input1.Split(new char[] { '_' }, StringSplitOptions.None);
+                string value = tokens[0];
+                string unit = tokens[1];
+                Conversion.Initialize();
+                string result = Conversion.workOnUnit(value, unit);
+                result = result + "|";
+                m_commsMod.DispatchReply(scriptID, 1, result.Split('|')[0], "");
             }
-            switch (module)
+            else //Ray Tracer Command
             {
-                case "MYMOD":       string[] tokens = input1.Split(new char[] { '_' }, StringSplitOptions.None);
-                                    string value = tokens[0];
-                                    string unit = tokens[1];
-                                    Conversion.Initialize();
-                                    string result = Conversion.workOnUnit(value, unit);
-                                    result = result + "|";
-                                    m_commsMod.DispatchReply(scriptId, 1, result.Split('|')[0], "");
-                                    break;
+                RayTraceRequest request = new RayTraceRequest(scriptID, command, input1, input2);
+                rayTracerRequestHandler.handleARequest(request);
+            }
 
-                case "DeleteRayTrace":  
-                                    raytrace.deleteRays();
-                                    break;
-
-                case "IDtype0":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(0, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 0;
-                                    break;
-
-                case "IDtype1":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(1, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 1;
-                                    break;
-
-                case "IDtype2":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(2, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 2;
-                                    break;
-
-                case "IDtype3":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(3, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 3;
-                                    break;
-
-                case "IDtype4":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(4, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 4;
-                                    break;
-
-                case "IDtype5":     raytrace.deleteRays();
-                                    raytrace.drawRayPath(5, 0);
-                                    pathIndex = 0;
-                                    currentNoOfReflectionSeleted = 5;
-                                    break;
-
-                case "NextPath":    raytrace.deleteRays();
-                                    pathIndex++;
-                                    pathIndex = raytrace.checkAndGetCorrectPathIndex(currentNoOfReflectionSeleted, pathIndex);
-                                    raytrace.drawRayPath(currentNoOfReflectionSeleted, pathIndex);
-                                    break;
-
-                case "PreviousPath": raytrace.deleteRays();
-                                    pathIndex--;
-                                    pathIndex = raytrace.checkAndGetCorrectPathIndex(currentNoOfReflectionSeleted, pathIndex);
-                                    raytrace.drawRayPath(currentNoOfReflectionSeleted, pathIndex);
-                                    break;
-
-
-                //This method can only be called after the ray tracer model has been initialised and post initialised
-                //Input1 contains no of reflection, pathID, and rayID (keys), Input2 contains the position of where 
-                //the ray was pressed;
-                case "getStrengthAt": double signalStrength = raytrace.getStrengthAt(input1, input2);
-                                    m_log.DebugFormat("[strength = ]" + signalStrength.ToString());
-                                      m_commsMod.DispatchReply(scriptId, 1, "Strength: " + signalStrength.ToString(), "");
-                                    break;
-                default:            break;
-
-
-            }//switch
         }//ProcessScriptCommand
-
-        public class Request
-        {
-            public UUID scriptID;
-            public string command;
-            public string input1;
-            public string input2;
-
-            public Request(UUID _scriptID, string _command, string _input1, string _input2)
-            {
-                scriptID = _scriptID;
-                command = _command;
-                input1 = _input1;
-                input2 = _input2;
-            }//constructure
-        }
-        public class RayTracerRequestHandler
-        {
-            Queue<Request> rayTracerQueue;                          //The request queue
-            bool isBusy;                                            //The lock to prevent other request using the resource.
-
-            public RayTracerRequestHandler()
-            {
-                rayTracerQueue = new Queue<Request>();              
-                isBusy = false;                                     
-            }//constructure
-
-            public void handleARequest(Request newRequest)
-            {
-                //If there is nothing in the queue
-                if (!isBusy)
-                {
-                    isBusy = true;
-                    if (newRequest.command == "RayTrace0To1" || )
-                    {
-                    }
-                }
-                else //it is busy, just add the request to the queue
-                {
-                    rayTracerQueue.Enqueue(newRequest);
-                }
-            }
-        }
     }//class
 }//name space
